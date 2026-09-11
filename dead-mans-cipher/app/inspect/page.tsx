@@ -2,394 +2,256 @@
 
 import { useState } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
+import { MapPin, Lock, Upload, AlertTriangle, CheckCircle2, Shield, Feather, Key, Play } from "lucide-react";
 import {
-  VerificationGate,
-  VerificationStatus,
-} from "@/components/ui/verification-badges";
-import { MapPin, Lock, Upload, AlertTriangle } from "lucide-react";
-
-type GateStatuses = {
-  schema: VerificationStatus;
-  replay: VerificationStatus;
-  freshness: VerificationStatus;
-  keyStatus: VerificationStatus;
-  signature: VerificationStatus;
-  integrity: VerificationStatus;
-};
-
-type InspectionState = "idle" | "running" | "pass" | "fail";
-
-const PENDING_GATES: GateStatuses = {
-  schema: "pending",
-  replay: "pending",
-  freshness: "pending",
-  keyStatus: "pending",
-  signature: "pending",
-  integrity: "pending",
-};
-
-const PASS_GATES: GateStatuses = {
-  schema: "pass",
-  replay: "pass",
-  freshness: "pass",
-  keyStatus: "pass",
-  signature: "pass",
-  integrity: "pass",
-};
-
-const FAIL_GATES: GateStatuses = {
-  schema: "pass",
-  replay: "fail",
-  freshness: "pass",
-  keyStatus: "pass",
-  signature: "pass",
-  integrity: "pass",
-};
-
-const demoEnvelope = {
-  version: 1,
-  messageId: "f3a9c821-4d2e-47b8-9c01-e5f72a3b8d94",
-  senderId: "identity-captain-vane-01",
-  recipientId: "identity-quartermaster-02",
-  messageType: "navigation",
-  createdAt: "2026-09-11T06:10:00.000Z",
-  expiresAt: "2026-09-11T10:10:00.000Z",
-  algorithm: "AES-256-GCM",
-  signatureAlgorithm: "Ed25519",
-  nonce: "dGhpcyBpcyBhIG5vbmNl",
-  ciphertext: "6Zp3mQ8xK2wL…[256 bytes]",
-  signature: "MEQCIBx7p3…[64 bytes]",
-  keyId: "seal-mark-4f8a2c91",
-  carrier: "image",
-  payloadVersion: 1,
-};
+  inspectAndDecryptPayload,
+  extractPayloadFromShantyText,
+  appendAuditEvent,
+  loadStoredIdentities,
+  DMCPayloadWire,
+  InspectionReport,
+} from "@/lib/crypto";
 
 export default function InspectPage() {
-  const [inputMode, setInputMode] = useState<"paste" | "upload">("paste");
-  const [state, setState] = useState<InspectionState>("idle");
-  const [gates, setGates] = useState<GateStatuses>(PENDING_GATES);
-  const [forceReplay, setForceReplay] = useState(false);
-  const [showMap, setShowMap] = useState(false);
+  const [rawInput, setRawInput] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [inspectionReport, setInspectionReport] = useState<InspectionReport | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  const runInspection = async (failReplay = false) => {
-    setState("running");
-    setGates(PENDING_GATES);
-    setShowMap(false);
-
-    const steps: Array<keyof GateStatuses> = [
-      "schema",
-      "replay",
-      "freshness",
-      "keyStatus",
-      "signature",
-      "integrity",
-    ];
-
-    const partialGates = { ...PENDING_GATES };
-
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise((r) => setTimeout(r, 500 + Math.random() * 300));
-      const key = steps[i];
-
-      if (key === "replay" && failReplay) {
-        partialGates[key] = "fail";
-        setGates({ ...partialGates });
-        setState("fail");
-        return;
-      }
-
-      partialGates[key] = "pass";
-      setGates({ ...partialGates });
-    }
-
-    setState("pass");
-    setTimeout(() => setShowMap(true), 400);
+  // Replay Attack & Demo Simulation Quick Options
+  const handleLoadSamplePayload = () => {
+    const samplePayload: DMCPayloadWire = {
+      magic: "DMC1",
+      version: 1,
+      cipher: "AES-256-GCM",
+      iv: "YmFzZTY0aXY=",
+      salt: "YmFzZTY0c2FsdA==",
+      ciphertext: "c2VjcmV0Q29vcmRpbmF0ZXNQYXlsb2Fk",
+      signature: "RWQyNTUxOVNpZ25hdHVyZUJ5dGVz",
+      pubKey: { kty: "OKP", crv: "Ed25519", x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" },
+      timestamp: new Date().toISOString(),
+      senderCaptain: "Captain Blackbeard",
+      senderShip: "Queen Anne's Revenge",
+    };
+    setRawInput(JSON.stringify(samplePayload, null, 2));
+    setPassphrase("crimson-kraken-blackbeard-9418");
   };
 
-  const compassState =
-    state === "running"
-      ? "verifying"
-      : state === "pass"
-      ? "verified"
-      : state === "fail"
-      ? "failed"
-      : "idle";
+  const handleInspect = async () => {
+    if (!rawInput.trim()) return;
+
+    setIsVerifying(true);
+    let parsedPayload: DMCPayloadWire | null = null;
+
+    try {
+      // Check if input is a sea shanty text containing zero-width stego payload
+      const extractedStegoStr = extractPayloadFromShantyText(rawInput);
+      if (extractedStegoStr) {
+        parsedPayload = JSON.parse(extractedStegoStr);
+      } else {
+        parsedPayload = JSON.parse(rawInput);
+      }
+    } catch {
+      // Invalid JSON input fallback structure for gate error demonstration
+      parsedPayload = {
+        magic: "INVALID" as any,
+        version: 0 as any,
+        cipher: "AES-256-GCM",
+        iv: "",
+        salt: "",
+        ciphertext: rawInput,
+        signature: "",
+        pubKey: {} as any,
+        timestamp: new Date().toISOString(),
+        senderCaptain: "Unknown Pirate",
+        senderShip: "Ghost Sloop",
+      };
+    }
+
+    if (!parsedPayload) return;
+
+    const trustedIdentities = loadStoredIdentities();
+    const report = await inspectAndDecryptPayload(parsedPayload, passphrase, trustedIdentities);
+    setInspectionReport(report);
+
+    // Append event to audit log
+    await appendAuditEvent(
+      report.overallSuccess ? "INSPECTION_PASSED" : "INSPECTION_FAILED",
+      parsedPayload.senderCaptain || "Boarding Officer",
+      report.overallSuccess
+        ? `Coordinates verified and decrypted successfully.`
+        : `Gate check failed (${report.gates.find((g) => !g.passed)?.code}).`,
+      report.overallSuccess ? "INFO" : "WARNING"
+    );
+
+    setIsVerifying(false);
+  };
 
   return (
-    <div className="animate-fade-in">
-      <div className="page-header">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
         <div>
-          <h2 className="page-title">Boarding Inspection</h2>
-          <p className="page-subtitle">
-            Six-gate verification — Schema → Replay → Freshness → Key Status → Signature → Integrity
+          <div className="flex items-center gap-2 text-amber-500 text-sm font-mono tracking-wider uppercase mb-1">
+            <Shield className="w-4 h-4" /> Boarding Inspection Deck
+          </div>
+          <h1 className="text-3xl font-bold font-serif text-amber-100">
+            Message Verification & 6-Gate Audit
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Verify digital signatures, check key state, audit timestamp freshness, and decrypt coordinates.
           </p>
         </div>
-        <CompassRose size={52} state={compassState} />
+        <div className="w-16 h-16 relative opacity-80">
+          <CompassRose ringColor="#d97706" arrowColor="#f59e0b" />
+        </div>
       </div>
 
-      <div className="grid-2">
-        {/* Input panel */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div className="card">
-            <div className="section-label" style={{ marginBottom: "16px" }}>
-              Incoming Dispatch
-            </div>
-
-            {/* Mode toggle */}
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginBottom: "16px",
-              }}
-            >
-              {(["paste", "upload"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  className={`btn ${inputMode === mode ? "btn-primary" : "btn-ghost"}`}
-                  style={{ flex: 1, fontSize: "0.7rem", padding: "8px" }}
-                  onClick={() => setInputMode(mode)}
-                >
-                  {mode === "paste" ? (
-                    <><Lock size={12} /> Paste Envelope</>
-                  ) : (
-                    <><Upload size={12} /> Upload Chart</>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {inputMode === "paste" ? (
-              <div>
-                <label className="input-label">Secure Envelope JSON</label>
-                <textarea
-                  className="input"
-                  rows={8}
-                  defaultValue={JSON.stringify(demoEnvelope, null, 2)}
-                  style={{ fontSize: "0.65rem" }}
-                  aria-label="Paste envelope JSON"
-                />
-              </div>
-            ) : (
-              <div className="chart-canvas-area" style={{ minHeight: "160px" }}>
-                <Upload size={32} style={{ color: "var(--gold-dim)", opacity: 0.5, marginBottom: "12px" }} />
-                <p style={{ fontFamily: "var(--font-display)", fontSize: "0.8rem", color: "var(--parchment-3)", opacity: 0.7 }}>
-                  Upload nautical PNG chart
-                </p>
-                <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--parchment-3)", opacity: 0.4, marginTop: "4px" }}>
-                  LSB steganographic extraction will run first
-                </p>
-              </div>
-            )}
-
-            {/* Demo controls */}
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "12px",
-                background: "var(--ink-2)",
-                borderRadius: "6px",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div className="section-label" style={{ marginBottom: "8px" }}>
-                Demo Controls
-              </div>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.7rem",
-                  color: "var(--parchment-3)",
-                  marginBottom: "8px",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={forceReplay}
-                  onChange={(e) => setForceReplay(e.target.checked)}
-                  style={{ accentColor: "var(--signal-red)" }}
-                  aria-label="Simulate replay attack"
-                />
-                Simulate replay (Ghost Ship) — force replay gate fail
-              </label>
-            </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Column: Input Payload */}
+        <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
+              <Upload className="w-5 h-5 text-amber-500" /> Incoming Payload or Shanty Text
+            </h2>
             <button
-              className={`btn ${state === "fail" ? "btn-danger" : "btn-primary"}`}
-              style={{ width: "100%", marginTop: "16px", padding: "12px", fontSize: "0.8rem" }}
-              onClick={() => runInspection(forceReplay)}
-              disabled={state === "running"}
-              aria-label="Run boarding inspection"
+              type="button"
+              onClick={handleLoadSamplePayload}
+              className="text-xs font-mono text-amber-400 hover:text-amber-300 border border-amber-900/40 px-2.5 py-1 rounded"
             >
-              {state === "running" ? (
-                <><CompassRose size={18} state="verifying" /> Running Inspection…</>
-              ) : (
-                "⚓ Run Boarding Inspection"
-              )}
+              Load Sample Payload
             </button>
           </div>
-        </div>
 
-        {/* Results panel */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {/* Verification Gate */}
-          <div className="card">
-            <VerificationGate
-              statuses={gates}
-              details={{
-                schema: "v1 — all required fields present",
-                replay: forceReplay && state === "fail" ? "messageId previously consumed — Ghost Ship!" : "messageId not seen before",
-                freshness: "expires at 2026-09-11T10:10:00Z — valid",
-                keyStatus: "ACTIVE — seal-mark-4f8a2c91",
-                signature: "Ed25519 — verified against trusted public key",
-                integrity: "AES-GCM authentication tag valid",
-              }}
+          <div className="space-y-2">
+            <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+              Paste Encrypted Payload JSON or Carrier Shanty
+            </label>
+            <textarea
+              rows={8}
+              value={rawInput}
+              onChange={(e) => setRawInput(e.target.value)}
+              placeholder="Paste JSON wire payload or Sea Shanty text containing zero-width hidden bytes..."
+              className="w-full bg-slate-950 border border-amber-900/40 rounded-lg p-3 text-amber-100 font-mono text-xs focus:outline-none focus:border-amber-500"
             />
           </div>
 
-          {/* Envelope summary */}
-          <div className="card">
-            <div className="section-label" style={{ marginBottom: "12px" }}>
-              Envelope Summary
-            </div>
-            <div className="envelope">
-              {[
-                ["Type", "Navigation Chart"],
-                ["Sender", "Captain Vane — seal-mark-4f8a2c91"],
-                ["Created", "2026-09-11 06:10 UTC"],
-                ["Expires", "2026-09-11 10:10 UTC"],
-                ["Algorithm", "AES-256-GCM + Ed25519"],
-                ["Carrier", "PNG steganographic chart"],
-              ].map(([k, v]) => (
-                <div key={k} className="envelope-field">
-                  <span className="envelope-key">{k}</span>
-                  <span className="envelope-value">{v}</span>
-                </div>
-              ))}
-            </div>
+          <div className="space-y-2">
+            <label className="text-xs font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Key className="w-3.5 h-3.5 text-amber-500" /> Secret Passphrase
+            </label>
+            <input
+              type="password"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              placeholder="Enter passphrase to authorize decryption..."
+              className="w-full bg-slate-950 border border-amber-900/40 rounded-lg px-4 py-2.5 text-amber-300 font-mono text-sm focus:outline-none focus:border-amber-500"
+            />
           </div>
 
-          {/* Map reveal — gated */}
-          <div className="card map-locked">
-            <div className="section-label" style={{ marginBottom: "12px" }}>
-              <MapPin size={12} style={{ display: "inline", marginRight: "6px" }} />
-              X Marks the Spot — Coordinate Reveal
-            </div>
+          <button
+            type="button"
+            onClick={handleInspect}
+            disabled={isVerifying || !rawInput.trim()}
+            className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg shadow-lg transition-all flex items-center justify-center gap-2"
+          >
+            <Play className="w-4 h-4" /> Run 6-Gate Boarding Inspection
+          </button>
+        </div>
 
-            {/* Map placeholder */}
-            <div
-              style={{
-                height: "200px",
-                background: "var(--ink-4)",
-                borderRadius: "6px",
-                position: "relative",
-                overflow: "hidden",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {/* Nautical chart grid lines background */}
-              <svg
-                width="100%"
-                height="100%"
-                style={{ position: "absolute", inset: 0, opacity: 0.15 }}
+        {/* Right Column: 6-Gate Audit Inspection Report */}
+        <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+          <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-amber-500" /> 6-Gate Inspection Report
+          </h2>
+
+          {inspectionReport ? (
+            <div className="space-y-6">
+              {/* Overall Status Banner */}
+              <div
+                className={`p-4 rounded-xl border flex items-center gap-4 ${
+                  inspectionReport.overallSuccess
+                    ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-300"
+                    : "bg-rose-950/40 border-rose-500/50 text-rose-300"
+                }`}
               >
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <g key={i}>
-                    <line
-                      x1={`${i * 10}%`} y1="0" x2={`${i * 10}%`} y2="100%"
-                      stroke="var(--gold-dim)" strokeWidth="0.5"
-                    />
-                    <line
-                      x1="0" y1={`${i * 10}%`} x2="100%" y2={`${i * 10}%`}
-                      stroke="var(--gold-dim)" strokeWidth="0.5"
-                    />
-                  </g>
-                ))}
-              </svg>
-
-              {showMap && state === "pass" ? (
-                <div
-                  className="animate-fade-in"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <div style={{ fontSize: "2rem" }}>✕</div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "0.9rem",
-                      color: "var(--gold)",
-                      textAlign: "center",
-                    }}
-                  >
-                    23.4162° N, 75.7720° E
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.6rem",
-                      color: "var(--signal-green-bright)",
-                    }}
-                  >
-                    Rendezvous at Gwadar Deep — dawn tide
-                  </div>
+                {inspectionReport.overallSuccess ? (
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-8 h-8 text-rose-400 shrink-0" />
+                )}
+                <div>
+                  <h3 className="font-serif font-bold text-lg">
+                    {inspectionReport.overallSuccess
+                      ? "MESSAGE VERIFIED — AUTHENTIC PIRATE ORDER"
+                      : "BOARDING ALERT — INTEGRITY GATE FAILURE DETECTED"}
+                  </h3>
+                  <p className="text-xs font-mono text-slate-300 mt-0.5">
+                    {inspectionReport.overallSuccess
+                      ? "All 6 verification gates passed cleanly."
+                      : "Interception, forgery, or tampering detected during verification."}
+                  </p>
                 </div>
-              ) : (
-                <div
-                  className="map-locked-overlay"
-                  style={{ position: "absolute", inset: 0 }}
-                >
-                  <Lock
-                    size={28}
-                    className="lock-icon"
-                    style={{ color: "var(--gold-dim)", opacity: 0.5 }}
-                  />
-                  <p
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "0.8rem",
-                      color: "var(--parchment-3)",
-                      opacity: 0.6,
-                      textAlign: "center",
-                    }}
-                  >
-                    Coordinates locked
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.6rem",
-                      color: "var(--parchment-3)",
-                      opacity: 0.4,
-                      textAlign: "center",
-                    }}
-                  >
-                    All six gates must pass before reveal
-                  </p>
-                  {state === "fail" && (
-                    <div
-                      className="badge badge-fail"
-                      style={{ marginTop: "8px" }}
-                    >
-                      <AlertTriangle size={10} />
-                      Inspection Failed — Access Denied
-                    </div>
-                  )}
+              </div>
+
+              {/* Revealed Coordinates if passed */}
+              {inspectionReport.overallSuccess && inspectionReport.decryptedCoordinates && (
+                <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-4 space-y-2">
+                  <div className="text-xs font-mono text-amber-400 uppercase tracking-wider flex items-center gap-1.5 font-bold">
+                    <MapPin className="w-4 h-4 text-amber-500" /> Decrypted Maritime Coordinates
+                  </div>
+                  <div className="font-mono text-base font-bold text-amber-200 bg-amber-950/30 p-3 rounded border border-amber-900/40">
+                    {inspectionReport.decryptedCoordinates}
+                  </div>
                 </div>
               )}
+
+              {/* 6 Verification Gates Checklist */}
+              <div className="space-y-3">
+                {inspectionReport.gates.map((g, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-lg border flex items-start gap-3 transition-all ${
+                      g.passed
+                        ? "bg-slate-950/80 border-emerald-900/40 text-slate-200"
+                        : "bg-rose-950/30 border-rose-900/50 text-rose-200"
+                    }`}
+                  >
+                    {g.passed ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <div className="font-serif text-sm font-semibold flex items-center gap-2">
+                        {g.gate}
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                            g.passed
+                              ? "bg-emerald-950 text-emerald-400 border border-emerald-800/40"
+                              : "bg-rose-950 text-rose-400 border border-rose-800/40"
+                          }`}
+                        >
+                          {g.code}
+                        </span>
+                      </div>
+                      <p className="text-xs font-mono text-slate-400 mt-1">{g.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="h-80 border-2 border-dashed border-amber-900/30 rounded-lg flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+              <Lock className="w-10 h-10 mb-3 text-amber-900/60" />
+              <p className="font-serif text-sm text-slate-400 font-semibold">
+                Awaiting Inspection Task
+              </p>
+              <p className="text-xs font-mono text-slate-500 mt-1 max-w-xs">
+                Paste an incoming ciphertext or click "Load Sample Payload" to run the 6-gate audit check.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

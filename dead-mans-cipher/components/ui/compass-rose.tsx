@@ -3,10 +3,18 @@
 interface CompassRoseProps {
   size?: number;
   state?: "idle" | "verifying" | "verified" | "failed";
+  ringColor?: string;
+  arrowColor?: string;
   className?: string;
 }
 
-export function CompassRose({ size = 80, state = "idle", className = "" }: CompassRoseProps) {
+export function CompassRose({
+  size = 80,
+  state = "idle",
+  ringColor: customRingColor,
+  arrowColor: customArrowColor,
+  className = "",
+}: CompassRoseProps) {
   const stateClass =
     state === "verifying"
       ? "verifying"
@@ -17,18 +25,20 @@ export function CompassRose({ size = 80, state = "idle", className = "" }: Compa
       : "";
 
   const arrowColor =
-    state === "verified"
+    customArrowColor ||
+    (state === "verified"
       ? "var(--signal-green-bright)"
       : state === "failed"
       ? "var(--signal-red-bright)"
-      : "var(--gold)";
+      : "var(--gold)");
 
   const ringColor =
-    state === "verified"
+    customRingColor ||
+    (state === "verified"
       ? "var(--signal-green)"
       : state === "failed"
       ? "var(--signal-red)"
-      : "var(--gold-dim)";
+      : "var(--gold-dim)");
 
   return (
     <div

@@ -2,307 +2,262 @@
 
 import { useState } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
-import { Swords, AlertTriangle, CheckCircle2, XCircle, Play } from "lucide-react";
+import { Swords, AlertTriangle, CheckCircle2, XCircle, Play, Shield } from "lucide-react";
+import {
+  inspectAndDecryptPayload,
+  appendAuditEvent,
+  DMCPayloadWire,
+  InspectionReport,
+} from "@/lib/crypto";
 
-interface Attack {
+interface AttackScenario {
   id: string;
   name: string;
-  pirateDesc: string;
-  technicalDesc: string;
-  reasonCode: string;
-  disposition: string;
-  severity: "MEDIUM" | "HIGH" | "CRITICAL";
+  category: "FORGERY" | "REPLAY" | "TAMPERING" | "KEY_COMPROMISE";
+  description: string;
+  getPayload: () => { payload: DMCPayloadWire; passphrase: string };
 }
 
-const ATTACKS: Attack[] = [
-  {
-    id: "bit-flip",
-    name: "Modify the Ciphertext",
-    pirateDesc: "Tamper with the sealed missive — flip a bit in the encrypted cargo",
-    technicalDesc: "Modify one byte of the AES-GCM ciphertext. The authentication tag will fail to validate, proving the message was altered.",
-    reasonCode: "CIPHERTEXT_TAMPERED",
-    disposition: "MESSAGE_REJECTED",
-    severity: "HIGH",
-  },
-  {
-    id: "invalid-sig",
-    name: "Forge the Captain's Mark",
-    pirateDesc: "Replace the signature with a forged mark — attempt to impersonate the sender",
-    technicalDesc: "Substitute an Ed25519 signature signed by a different key. Verification against the registered public key fingerprint will fail.",
-    reasonCode: "SIGNATURE_INVALID",
-    disposition: "MESSAGE_REJECTED",
-    severity: "CRITICAL",
-  },
-  {
-    id: "replay",
-    name: "Ghost Ship — Replay Attack",
-    pirateDesc: "Re-send a previously accepted missive, hoping the receiver is fooled twice",
-    technicalDesc: "Submit a messageId that has already been consumed. The replay tracker rejects any ID seen before, regardless of validity.",
-    reasonCode: "MESSAGE_ID_CONSUMED",
-    disposition: "MESSAGE_REJECTED",
-    severity: "HIGH",
-  },
-  {
-    id: "expired",
-    name: "Deliver a Stale Dispatch",
-    pirateDesc: "Send a message past its expiry — an old order from a dead captain",
-    technicalDesc: "Set expiresAt to a past timestamp. The freshness check compares against the current UTC clock and rejects expired messages.",
-    reasonCode: "MESSAGE_EXPIRED",
-    disposition: "MESSAGE_REJECTED",
-    severity: "MEDIUM",
-  },
-  {
-    id: "corrupt-carrier",
-    name: "Corrupt the Chart Carrier",
-    pirateDesc: "Damage the nautical chart mid-voyage — the hidden payload becomes unreadable",
-    technicalDesc: "Flip random bytes in the carrier image. The LSB extractor's magic-byte and checksum validation detect the corruption before attempting JSON parse.",
-    reasonCode: "CARRIER_CORRUPTED",
-    disposition: "EXTRACTION_FAILED",
-    severity: "MEDIUM",
-  },
-  {
-    id: "wrong-key",
-    name: "Board with Wrong Colors",
-    pirateDesc: "Present the wrong Captain's Seal during inspection — claim to be who you are not",
-    technicalDesc: "Attempt verification using a public key that doesn't match the envelope's keyId. The key status and signature checks both fail.",
-    reasonCode: "KEY_MISMATCH",
-    disposition: "MESSAGE_REJECTED",
-    severity: "CRITICAL",
-  },
-];
-
-const severityColors = {
-  MEDIUM:   { color: "var(--signal-amber-bright)",  bg: "var(--signal-amber-glow)" },
-  HIGH:     { color: "var(--signal-red-bright)",    bg: "var(--signal-red-glow)" },
-  CRITICAL: { color: "var(--signal-red-bright)",    bg: "var(--signal-red-glow)" },
-};
-
-type AttackState = "idle" | "executing" | "completed";
-
 export default function AttackLabPage() {
-  const [states, setStates] = useState<Record<string, AttackState>>({});
-  const [results, setResults] = useState<Record<string, { log: string[]; reasonCode: string; disposition: string }>>({});
+  const [selectedAttackId, setSelectedAttackId] = useState<string>("attack_1");
+  const [lastReport, setLastReport] = useState<InspectionReport | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const runAttack = async (attack: Attack) => {
-    setStates((s) => ({ ...s, [attack.id]: "executing" }));
-    const logLines: string[] = [];
+  const attacks: AttackScenario[] = [
+    {
+      id: "attack_1",
+      name: "1. Forged Signature Attack (Admiralty Impersonation)",
+      category: "FORGERY",
+      description: "Royal Navy codebreakers intercept a message and forge an invalid Ed25519 signature.",
+      getPayload: () => ({
+        payload: {
+          magic: "DMC1",
+          version: 1,
+          cipher: "AES-256-GCM",
+          iv: "YmFzZTY0aXY=",
+          salt: "YmFzZTY0c2FsdA==",
+          ciphertext: "Y29vcmRpbmF0ZXNfaGVyZQ==",
+          signature: "RkFLRV9TSUdOQVRVUkVfRk9SR0VSWQ==", // Bad Signature
+          pubKey: { kty: "OKP", crv: "Ed25519", x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" },
+          timestamp: new Date().toISOString(),
+          senderCaptain: "Admiral Nelson (Navy)",
+          senderShip: "HMS Victory",
+        },
+        passphrase: "crimson-kraken-blackbeard-9418",
+      }),
+    },
+    {
+      id: "attack_2",
+      name: "2. Replay Attack (Stale Maritime Orders)",
+      category: "REPLAY",
+      description: "Interception sloops re-transmit valid coordinates captured 48 hours ago.",
+      getPayload: () => {
+        const oldDate = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        return {
+          payload: {
+            magic: "DMC1",
+            version: 1,
+            cipher: "AES-256-GCM",
+            iv: "YmFzZTY0aXY=",
+            salt: "YmFzZTY0c2FsdA==",
+            ciphertext: "Y29vcmRpbmF0ZXNfaGVyZQ==",
+            signature: "RWQyNTUxOVNpZ25hdHVyZUJ5dGVz",
+            pubKey: { kty: "OKP", crv: "Ed25519", x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" },
+            timestamp: oldDate, // 48h stale
+            senderCaptain: "Captain Blackbeard",
+            senderShip: "Queen Anne's Revenge",
+          },
+          passphrase: "crimson-kraken-blackbeard-9418",
+        };
+      },
+    },
+    {
+      id: "attack_3",
+      name: "3. Ciphertext Bit-Flip Attack (Transit Corruption)",
+      category: "TAMPERING",
+      description: "Corrupt 1 byte in the ciphertext payload to trigger GCM AuthTag integrity failure.",
+      getPayload: () => ({
+        payload: {
+          magic: "DMC1",
+          version: 1,
+          cipher: "AES-256-GCM",
+          iv: "YmFzZTY0aXY=",
+          salt: "YmFzZTY0c2FsdA==",
+          ciphertext: "Q29ycnVwdGVkQ2lwaGVydGV4dEJpdEZsaXA=", // Corrupted
+          signature: "RWQyNTUxOVNpZ25hdHVyZUJ5dGVz",
+          pubKey: { kty: "OKP", crv: "Ed25519", x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" },
+          timestamp: new Date().toISOString(),
+          senderCaptain: "Captain Blackbeard",
+          senderShip: "Queen Anne's Revenge",
+        },
+        passphrase: "crimson-kraken-blackbeard-9418",
+      }),
+    },
+    {
+      id: "attack_4",
+      name: "4. Wrong Passphrase Attack (Brute-Force Authorization)",
+      category: "KEY_COMPROMISE",
+      description: "Attempt decryption using an invalid wax seal secret passphrase.",
+      getPayload: () => ({
+        payload: {
+          magic: "DMC1",
+          version: 1,
+          cipher: "AES-256-GCM",
+          iv: "YmFzZTY0aXY=",
+          salt: "YmFzZTY0c2FsdA==",
+          ciphertext: "Y29vcmRpbmF0ZXNfaGVyZQ==",
+          signature: "RWQyNTUxOVNpZ25hdHVyZUJ5dGVz",
+          pubKey: { kty: "OKP", crv: "Ed25519", x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" },
+          timestamp: new Date().toISOString(),
+          senderCaptain: "Captain Blackbeard",
+          senderShip: "Queen Anne's Revenge",
+        },
+        passphrase: "WRONG_PASSPHRASE_GUESS",
+      }),
+    },
+  ];
 
-    // Simulate step-by-step log output
-    const logs: Record<string, string[]> = {
-      "bit-flip":      ["→ Envelope received", "→ Schema validated ✓", "→ Replay check passed ✓", "→ Freshness check passed ✓", "→ Key status ACTIVE ✓", "→ Signature verified ✓", "→ Decrypting AES-256-GCM…", "✗ Auth tag mismatch — ciphertext tampered"],
-      "invalid-sig":   ["→ Envelope received", "→ Schema validated ✓", "→ Replay check passed ✓", "→ Freshness check passed ✓", "→ Key status ACTIVE ✓", "→ Verifying Ed25519 signature…", "✗ Signature invalid — does not match public key 4f:8a:2c:91"],
-      "replay":        ["→ Envelope received", "→ Schema validated ✓", "→ Checking messageId f3a9c821…", "✗ messageId already consumed — Ghost Ship detected!"],
-      "expired":       ["→ Envelope received", "→ Schema validated ✓", "→ Replay check passed ✓", "→ Freshness check: expiresAt 2024-01-01T00:00:00Z vs now 2026-09-11T…", "✗ Message expired — dispatch is stale"],
-      "corrupt-carrier":["→ Chart upload received", "→ Reading LSBs from pixel channels…", "→ Magic bytes: 0xDE 0xAD — match ✓", "→ Payload length: 2847 bytes", "→ Reading payload…", "→ SHA-256 checksum: expected a3f2c9… got deadbeef…", "✗ Checksum mismatch — carrier corrupted"],
-      "wrong-key":     ["→ Envelope received", "→ Schema validated ✓", "→ Replay check passed ✓", "→ Freshness check passed ✓", "→ Key lookup: seal-mark-4f8a2c91 → ACTIVE", "→ Verifying signature with presented key…", "✗ Key mismatch — presented key does not match keyId in envelope"],
-    };
+  const handleRunAttack = async (attack: AttackScenario) => {
+    setIsRunning(true);
+    const { payload, passphrase } = attack.getPayload();
 
-    const attackLogs = logs[attack.id] || ["→ Attack simulation running…", "✗ Attack detected and rejected"];
-    for (const line of attackLogs) {
-      await new Promise((r) => setTimeout(r, 280 + Math.random() * 120));
-      logLines.push(line);
-      setResults((r) => ({
-        ...r,
-        [attack.id]: { log: [...logLines], reasonCode: attack.reasonCode, disposition: attack.disposition },
-      }));
-    }
+    const report = await inspectAndDecryptPayload(payload, passphrase, []);
+    setLastReport(report);
 
-    setStates((s) => ({ ...s, [attack.id]: "completed" }));
+    await appendAuditEvent(
+      "ATTACK_SIMULATED",
+      "Kraken Attack Lab",
+      `Ran ${attack.name}. Defense Gate Result: ${report.overallSuccess ? "BYPASSED" : "BLOCKED"} (${report.gates.find(g => !g.passed)?.code}).`,
+      report.overallSuccess ? "CRITICAL" : "INFO"
+    );
+
+    setIsRunning(false);
   };
 
-  const allCompleted = ATTACKS.every((a) => states[a.id] === "completed");
-
   return (
-    <div className="animate-fade-in">
-      <div className="page-header">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
         <div>
-          <h2 className="page-title">The Kraken's Trial</h2>
-          <p className="page-subtitle">
-            Safe, deterministic attack simulations — each produces a reason code and is logged to the Ship's Log
+          <div className="flex items-center gap-2 text-rose-500 text-sm font-mono tracking-wider uppercase mb-1">
+            <Swords className="w-4 h-4" /> Adversarial Attack Simulator
+          </div>
+          <h1 className="text-3xl font-bold font-serif text-amber-100">
+            Kraken's Trial — Attack Simulator
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Simulate naval codebreaker attacks (signature forgery, replay attacks, bit-flips) against the 6-gate defense engine.
           </p>
         </div>
-        <Swords size={40} style={{ color: "var(--signal-red)", opacity: 0.7 }} />
+        <div className="w-16 h-16 relative opacity-80">
+          <CompassRose ringColor="#e11d48" arrowColor="#f43f5e" />
+        </div>
       </div>
 
-      {/* Run all */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "24px",
-        }}
-      >
-        <p
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.7rem",
-            color: "var(--parchment-3)",
-            opacity: 0.7,
-          }}
-        >
-          {allCompleted
-            ? "All attacks simulated — every attempt was detected and rejected."
-            : "Select an attack to simulate, or run all in sequence."}
-        </p>
-        <button
-          className="btn btn-danger"
-          onClick={async () => {
-            for (const attack of ATTACKS) {
-              await runAttack(attack);
-              await new Promise((r) => setTimeout(r, 300));
-            }
-          }}
-          disabled={Object.values(states).some((s) => s === "executing")}
-          aria-label="Run all attacks in sequence"
-        >
-          <Swords size={14} /> Unleash the Kraken
-        </button>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Column 1: Attack Scenarios */}
+        <div className="space-y-4 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+          <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
+            <Swords className="w-5 h-5 text-rose-500" /> Select Adversarial Attack Vector
+          </h2>
 
-      {/* Attack cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-        {ATTACKS.map((attack, i) => {
-          const state = states[attack.id] || "idle";
-          const result = results[attack.id];
-          const sc = severityColors[attack.severity];
-
-          return (
-            <div
-              key={attack.id}
-              className={`attack-card ${state === "executing" ? "executing" : state === "completed" ? "completed" : ""} animate-fade-up stagger-${i + 1}`}
-            >
+          <div className="space-y-3">
+            {attacks.map((atk) => (
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                }}
+                key={atk.id}
+                className={`p-4 rounded-xl border transition-all ${
+                  selectedAttackId === atk.id
+                    ? "bg-rose-950/40 border-rose-500/80 text-amber-100"
+                    : "bg-slate-950 border-amber-900/30 text-slate-300 hover:border-amber-700"
+                }`}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "0.6rem",
-                        color: sc.color,
-                        background: sc.bg,
-                        border: `1px solid ${sc.color}`,
-                        borderRadius: "3px",
-                        padding: "1px 6px",
-                        letterSpacing: "0.08em",
-                      }}
-                    >
-                      {attack.severity}
-                    </span>
-                  </div>
-                  <h3
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "0.88rem",
-                      color: "var(--parchment)",
-                      letterSpacing: "0.03em",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    {attack.name}
+                <div className="flex items-center justify-between font-serif font-bold text-sm">
+                  {atk.name}
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800">
+                    {atk.category}
+                  </span>
+                </div>
+                <p className="text-xs font-mono text-slate-400 mt-1.5">{atk.description}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAttackId(atk.id);
+                    handleRunAttack(atk);
+                  }}
+                  disabled={isRunning}
+                  className="mt-3 py-2 px-4 bg-rose-900/80 hover:bg-rose-800 text-rose-100 font-mono text-xs font-bold rounded flex items-center gap-1.5 transition-all"
+                >
+                  <Play className="w-3.5 h-3.5" /> Execute Attack Simulator
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Column 2: Live Defense Engine Response */}
+        <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+          <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-emerald-500" /> Live Gate Defense Response
+          </h2>
+
+          {lastReport ? (
+            <div className="space-y-6">
+              <div
+                className={`p-4 rounded-xl border flex items-center gap-4 ${
+                  !lastReport.overallSuccess
+                    ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-300"
+                    : "bg-rose-950/40 border-rose-500/50 text-rose-300"
+                }`}
+              >
+                {!lastReport.overallSuccess ? (
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-8 h-8 text-rose-400 shrink-0" />
+                )}
+                <div>
+                  <h3 className="font-serif font-bold text-lg">
+                    {!lastReport.overallSuccess
+                      ? "ATTACK BLOCKED — DEFENSE GATES HELD FIRM"
+                      : "ATTACK BYPASSED DEFENSES (WARNING)"}
                   </h3>
-                  <p
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.63rem",
-                      color: "var(--parchment-3)",
-                      opacity: 0.7,
-                      lineHeight: 1.5,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    "{attack.pirateDesc}"
+                  <p className="text-xs font-mono text-slate-300 mt-0.5">
+                    {!lastReport.overallSuccess
+                      ? `Caught by gate check: ${lastReport.gates.find(g => !g.passed)?.code}`
+                      : "Payload was unexpectedly authorized."}
                   </p>
                 </div>
-                {state === "executing" ? (
-                  <CompassRose size={28} state="verifying" />
-                ) : state === "completed" ? (
-                  <XCircle size={22} style={{ color: "var(--signal-red-bright)", flexShrink: 0 }} />
-                ) : (
-                  <button
-                    className="btn btn-danger"
-                    style={{ padding: "6px 12px", fontSize: "0.65rem", flexShrink: 0 }}
-                    onClick={() => runAttack(attack)}
-                    aria-label={`Run ${attack.name} attack simulation`}
-                  >
-                    <Play size={10} /> Run
-                  </button>
-                )}
               </div>
 
-              <p
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.63rem",
-                  color: "var(--parchment-3)",
-                  opacity: 0.6,
-                  lineHeight: 1.6,
-                  marginBottom: "12px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                {attack.technicalDesc}
-              </p>
-
-              {/* Log output */}
-              {result && (
-                <div className="attack-result">
+              {/* 6 Verification Gates Breakdown */}
+              <div className="space-y-2">
+                {lastReport.gates.map((g, idx) => (
                   <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.62rem",
-                      lineHeight: 2,
-                      color: "var(--parchment-3)",
-                    }}
+                    key={idx}
+                    className={`p-3 rounded-lg border flex items-start gap-3 text-xs font-mono ${
+                      g.passed
+                        ? "bg-slate-950 border-emerald-900/40 text-slate-300"
+                        : "bg-rose-950/50 border-rose-500/80 text-rose-200 font-bold"
+                    }`}
                   >
-                    {result.log.map((line, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          color: line.startsWith("✗")
-                            ? "var(--signal-red-bright)"
-                            : line.includes("✓")
-                            ? "var(--signal-green-bright)"
-                            : "var(--parchment-3)",
-                          opacity: line.startsWith("✗") || line.includes("✓") ? 1 : 0.7,
-                        }}
-                      >
-                        {line}
-                      </div>
-                    ))}
-                  </div>
-                  {state === "completed" && (
-                    <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: "0.6rem",
-                          color: "var(--signal-amber-bright)",
-                          background: "var(--signal-amber-glow)",
-                          border: "1px solid var(--signal-amber)",
-                          borderRadius: "3px",
-                          padding: "2px 8px",
-                          letterSpacing: "0.08em",
-                        }}
-                      >
-                        {result.reasonCode}
-                      </span>
-                      <span className="disposition-badge">{result.disposition}</span>
+                    {g.passed ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <div>{g.gate} — <span className="underline">{g.code}</span></div>
+                      <div className="text-[11px] text-slate-400 font-normal mt-0.5">{g.detail}</div>
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>
-          );
-        })}
+          ) : (
+            <div className="h-80 border-2 border-dashed border-amber-900/30 rounded-lg flex items-center justify-center text-slate-500">
+              Select an attack scenario on the left to test the defense engine.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

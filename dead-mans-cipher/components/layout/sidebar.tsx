@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,8 +13,11 @@ import {
   BarChart3,
   ScrollText,
   Skull,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { CompassRose } from "@/components/ui/compass-rose";
+import { nauticalAudio } from "@/lib/audio";
 
 const navItems = [
   {
@@ -49,18 +53,37 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isMuted, setIsMuted] = useState(false);
+
+  const handleToggleAudio = () => {
+    const muted = nauticalAudio.toggleMute();
+    setIsMuted(muted);
+    if (!muted) {
+      nauticalAudio.playChime();
+    }
+  };
 
   return (
     <aside className="sidebar" role="navigation" aria-label="Main navigation">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
-          <CompassRose size={36} />
-          <div>
-            <h1>Dead Man's<br />Cipher</h1>
-            <p>Cryptographic Workbench</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <CompassRose size={36} />
+            <div>
+              <h1>Dead Man's<br />Cipher</h1>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={handleToggleAudio}
+            title={isMuted ? "Unmute Sound Effects" : "Mute Sound Effects"}
+            className="p-1.5 rounded-lg bg-slate-900 border border-amber-900/40 text-amber-400 hover:text-amber-300 transition-all"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 text-slate-500" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
+          </button>
         </div>
+        <p style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>Cryptographic Workbench</p>
         <div
           style={{
             fontSize: "0.6rem",

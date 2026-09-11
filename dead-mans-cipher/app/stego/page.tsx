@@ -1,395 +1,448 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
-import { Upload, Download, AlertTriangle, CheckCircle2, Info } from "lucide-react";
-
-type StegoState = "idle" | "embedding" | "done" | "error";
-type ExtractState = "idle" | "extracting" | "done" | "error";
+import { Upload, Download, Feather, ImageIcon, Sparkles, CheckCircle2, AlertTriangle, Image as ImageLucide } from "lucide-react";
+import {
+  embedPayloadInShantyText,
+  extractPayloadFromShantyText,
+  calculateImageCapacity,
+  embedPayloadImageData,
+  extractPayloadImageData,
+  appendAuditEvent,
+} from "@/lib/crypto";
+import { nauticalAudio } from "@/lib/audio";
 
 export default function StegoPage() {
-  const [embedState, setEmbedState] = useState<StegoState>("idle");
-  const [extractState, setExtractState] = useState<ExtractState>("idle");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [capacity] = useState({ used: 0, total: 48231, percent: 0 });
-  const [activeTab, setActiveTab] = useState<"embed" | "extract">("embed");
+  const [activeTab, setActiveTab] = useState<"shanty" | "image">("shanty");
 
-  const handleEmbed = async () => {
-    setEmbedState("embedding");
-    await new Promise((r) => setTimeout(r, 2000));
-    setEmbedState("done");
+  // Shanty Stego State
+  const [shantyInput, setShantyInput] = useState(
+    "Farewell and adieu to you, fair Spanish ladies,\nFarewell and adieu to you, ladies of Spain;\nFor we've received orders for to sail for old England,\nAnd we hope in a short time to see you again."
+  );
+  const [secretPayload, setSecretPayload] = useState("17.9241° N, 76.8122° W (Port Royal Vault)");
+  const [shantyStegoOutput, setShantyStegoOutput] = useState<string | null>(null);
+  const [extractedShantySecret, setExtractedShantySecret] = useState<string | null>(null);
+
+  // Image LSB Stego State
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageCapacity, setImageCapacity] = useState<{ usableBytes: number } | null>(null);
+  const [stegoImageOutput, setStegoImageOutput] = useState<string | null>(null);
+  const [extractedImageSecret, setExtractedImageSecret] = useState<string | null>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Helper to generate dynamic preset canvas image Data URLs
+  const createPresetImage = (type: "jolly" | "chart" | "flag"): string => {
+    if (typeof window === "undefined") return "";
+    const c = document.createElement("canvas");
+    c.width = 200;
+    c.height = 200;
+    const ctx = c.getContext("2d");
+    if (!ctx) return "";
+
+    if (type === "jolly") {
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.fillStyle = "#d97706";
+      ctx.beginPath();
+      ctx.arc(100, 90, 45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#0f172a";
+      ctx.beginPath();
+      ctx.arc(85, 80, 10, 0, Math.PI * 2);
+      ctx.arc(115, 80, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = "bold 14px monospace";
+      ctx.fillStyle = "#fef3c7";
+      ctx.fillText("JOLLY ROGER", 55, 175);
+    } else if (type === "chart") {
+      ctx.fillStyle = "#1e1b4b";
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.strokeStyle = "#4338ca";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 200; i += 25) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, 200);
+        ctx.moveTo(0, i);
+        ctx.lineTo(200, i);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "bold 13px serif";
+      ctx.fillText("NAUTICAL CHART", 40, 100);
+    } else {
+      ctx.fillStyle = "#881337";
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.fillStyle = "#fef3c7";
+      ctx.beginPath();
+      ctx.moveTo(30, 30);
+      ctx.lineTo(170, 100);
+      ctx.lineTo(30, 170);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = "bold 12px monospace";
+      ctx.fillStyle = "#991b1b";
+      ctx.fillText("CORSAIR FLAG", 40, 105);
+    }
+
+    return c.toDataURL("image/png");
   };
 
-  const handleExtract = async () => {
-    setExtractState("extracting");
-    await new Promise((r) => setTimeout(r, 1500));
-    setExtractState("done");
+  useEffect(() => {
+    // Set default preset image
+    const defaultDataUrl = createPresetImage("jolly");
+    setSelectedImage(defaultDataUrl);
+    setImageCapacity(calculateImageCapacity(200, 200));
+  }, []);
+
+  const handleSelectPreset = (type: "jolly" | "chart" | "flag") => {
+    const url = createPresetImage(type);
+    setSelectedImage(url);
+    setImageCapacity(calculateImageCapacity(200, 200));
+    setStegoImageOutput(null);
+    setExtractedImageSecret(null);
+    nauticalAudio.playClick();
   };
 
-  const mockCapacity = {
-    imageSize: "1920 × 1080 px",
-    channels: 3,
-    bitsPerChannel: 2,
-    totalBits: 1920 * 1080 * 3 * 2,
-    headerOverhead: 32,
-    usableBytes: Math.floor((1920 * 1080 * 3 * 2) / 8) - 32,
-    payloadSize: 2847,
+  // Shanty Stego Embed & Extract
+  const handleShantyEmbed = async () => {
+    if (!shantyInput.trim() || !secretPayload.trim()) return;
+    const res = embedPayloadInShantyText(shantyInput, secretPayload);
+    setShantyStegoOutput(res.stegoText);
+    nauticalAudio.playChime();
+
+    await appendAuditEvent(
+      "STEGO_EMBEDDED",
+      "Steganography Master",
+      `Embedded ${res.payloadLengthBits} bits into Sea Shanty text using zero-width characters.`
+    );
   };
 
-  const usedPercent = Math.round((mockCapacity.payloadSize / mockCapacity.usableBytes) * 100);
+  const handleShantyExtract = () => {
+    if (!shantyStegoOutput) return;
+    const extracted = extractPayloadFromShantyText(shantyStegoOutput);
+    setExtractedShantySecret(extracted || "No zero-width payload detected.");
+    nauticalAudio.playBell();
+  };
+
+  // Image LSB Upload Handler
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const imgUrl = evt.target?.result as string;
+      setSelectedImage(imgUrl);
+
+      const img = new Image();
+      img.onload = () => {
+        const cap = calculateImageCapacity(img.width, img.height);
+        setImageCapacity(cap);
+      };
+      img.src = imgUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Image LSB Embed
+  const handleImageEmbed = async () => {
+    if (!selectedImage || !canvasRef.current) return;
+
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = canvasRef.current!;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+      const stegoData = embedPayloadImageData(imageData, secretPayload);
+      ctx.putImageData(stegoData, 0, 0);
+
+      const stegoUrl = canvas.toDataURL("image/png");
+      setStegoImageOutput(stegoUrl);
+      nauticalAudio.playChime();
+
+      await appendAuditEvent(
+        "STEGO_EMBEDDED",
+        "Steganography Master",
+        `Embedded LSB payload into ${img.width}x${img.height} canvas image pixels.`
+      );
+    };
+    img.src = selectedImage;
+  };
+
+  // Image LSB Extract
+  const handleImageExtract = () => {
+    const targetImage = stegoImageOutput || selectedImage;
+    if (!targetImage || !canvasRef.current) return;
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = canvasRef.current!;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+      const extracted = extractPayloadImageData(imageData);
+
+      setExtractedImageSecret(
+        extracted || "No valid LSB payload header detected in image pixels."
+      );
+      nauticalAudio.playBell();
+    };
+    img.src = targetImage;
+  };
+
+  const handleDownloadStegoImage = () => {
+    if (!stegoImageOutput) return;
+    const a = document.createElement("a");
+    a.href = stegoImageOutput;
+    a.download = "sail_emblem_stego.png";
+    a.click();
+  };
 
   return (
-    <div className="animate-fade-in">
-      <div className="page-header">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
         <div>
-          <h2 className="page-title">Steganography Lab</h2>
-          <p className="page-subtitle">
-            Seal into the Chart — LSB pixel embedding for encrypted payload concealment
+          <div className="flex items-center gap-2 text-amber-500 text-sm font-mono tracking-wider uppercase mb-1">
+            <Feather className="w-4 h-4" /> Steganography Lab
+          </div>
+          <h1 className="text-3xl font-bold font-serif text-amber-100">
+            Nautical Steganography & Covert Carriers
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Hide encrypted coordinates inside Sea Shanty lyrics (Zero-Width Unicode) or Sail Emblem PNG images (LSB Pixels).
           </p>
         </div>
-        <CompassRose
-          size={52}
-          state={embedState === "embedding" || extractState === "extracting" ? "verifying" : "idle"}
-        />
+        <div className="w-16 h-16 relative opacity-80">
+          <CompassRose ringColor="#d97706" arrowColor="#f59e0b" />
+        </div>
       </div>
 
-      {/* Educational disclaimer */}
-      <div
-        style={{
-          background: "rgba(201, 168, 76, 0.06)",
-          border: "1px solid var(--border)",
-          borderRadius: "6px",
-          padding: "12px 16px",
-          marginBottom: "24px",
-          display: "flex",
-          gap: "12px",
-          alignItems: "flex-start",
-        }}
-      >
-        <Info size={14} style={{ color: "var(--gold-dim)", flexShrink: 0, marginTop: "2px" }} />
-        <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--parchment-3)", opacity: 0.8, lineHeight: 1.7 }}>
-          <strong style={{ color: "var(--gold)" }}>Steganography ≠ Encryption.</strong> Concealment hides the existence of a payload — cryptography protects its content. This lab embeds an <em>already-encrypted</em> envelope into LSBs of image pixels. Basic LSB steganography is statistically detectable and destroyed by lossy formats (JPEG). Always encrypt first; steganography is a carrier, not a security boundary.
-        </p>
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-amber-900/30 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("shanty")}
+          className={`py-2 px-4 rounded-lg font-mono text-sm font-bold flex items-center gap-2 transition-all ${
+            activeTab === "shanty"
+              ? "bg-amber-500/20 text-amber-200 border border-amber-500/50"
+              : "text-slate-400 hover:text-amber-300"
+          }`}
+        >
+          <Feather className="w-4 h-4" /> Sea Shanty Text Stego (Zero-Width)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("image")}
+          className={`py-2 px-4 rounded-lg font-mono text-sm font-bold flex items-center gap-2 transition-all ${
+            activeTab === "image"
+              ? "bg-amber-500/20 text-amber-200 border border-amber-500/50"
+              : "text-slate-400 hover:text-amber-300"
+          }`}
+        >
+          <ImageIcon className="w-4 h-4" /> Sail Emblem Image LSB Stego
+        </button>
       </div>
 
-      {/* Tab toggle */}
-      <div
-        style={{
-          display: "flex",
-          gap: "4px",
-          marginBottom: "24px",
-          background: "var(--ink-2)",
-          padding: "4px",
-          borderRadius: "8px",
-          border: "1px solid var(--border)",
-          width: "fit-content",
-        }}
-      >
-        {(["embed", "extract"] as const).map((tab) => (
-          <button
-            key={tab}
-            className={`btn ${activeTab === tab ? "btn-primary" : "btn-ghost"}`}
-            style={{ fontSize: "0.75rem", padding: "8px 20px", border: "none" }}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === "embed" ? "Seal into Chart" : "Unseal the Chart"}
-          </button>
-        ))}
-      </div>
+      {/* Tab 1: Sea Shanty Text Stego */}
+      {activeTab === "shanty" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+            <h2 className="text-lg font-serif font-semibold text-amber-200">
+              Embed Payload into Sea Shanty
+            </h2>
 
-      {activeTab === "embed" ? (
-        <div className="grid-2">
-          {/* Left: Controls */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {/* Chart upload */}
-            <div className="card">
-              <div className="section-label" style={{ marginBottom: "12px" }}>
-                Carrier Chart (PNG Only)
-              </div>
-              <div
-                className={`chart-canvas-area ${imagePreview ? "has-image" : ""}`}
-                style={{ minHeight: "160px" }}
-                onClick={() => {}}
-                role="button"
-                tabIndex={0}
-                aria-label="Upload carrier PNG image"
-              >
-                {imagePreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imagePreview} alt="Carrier chart" style={{ width: "100%", height: "160px", objectFit: "cover" }} />
-                ) : (
-                  <>
-                    <Upload size={28} style={{ color: "var(--gold-dim)", opacity: 0.5, marginBottom: "10px" }} />
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", color: "var(--parchment-3)", opacity: 0.7 }}>
-                      Drop nautical PNG chart here
-                    </p>
-                    <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--parchment-3)", opacity: 0.4, marginTop: "4px" }}>
-                      Lossless PNG only — max 10 MB
-                    </p>
-                  </>
-                )}
-              </div>
-
-              {/* Demo: show capacity for a demo 1920×1080 image */}
-              <div style={{ marginTop: "16px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "6px",
-                  }}
-                >
-                  <span className="section-label" style={{ marginBottom: 0 }}>
-                    Carrier Capacity
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.62rem",
-                      color: usedPercent > 80 ? "var(--signal-amber-bright)" : "var(--signal-green-bright)",
-                    }}
-                  >
-                    {mockCapacity.payloadSize.toLocaleString()} / {mockCapacity.usableBytes.toLocaleString()} bytes ({usedPercent}%)
-                  </span>
-                </div>
-                <div className="capacity-bar">
-                  <div
-                    className={`capacity-fill ${usedPercent > 80 ? "over" : ""}`}
-                    style={{ width: `${Math.min(usedPercent, 100)}%` }}
-                    role="progressbar"
-                    aria-valuenow={usedPercent}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`Capacity used: ${usedPercent}%`}
-                  />
-                </div>
-
-                {/* Capacity formula */}
-                <div
-                  style={{
-                    marginTop: "12px",
-                    padding: "10px 12px",
-                    background: "var(--ink-4)",
-                    borderRadius: "4px",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  <div className="section-label" style={{ marginBottom: "6px", fontSize: "0.55rem" }}>
-                    Capacity Formula
-                  </div>
-                  <code
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.6rem",
-                      color: "var(--gold)",
-                      lineHeight: 1.8,
-                      display: "block",
-                    }}
-                  >
-                    usable_bits = W × H × channels × bits_per_channel<br />
-                    = {mockCapacity.imageSize} × 3 × 2<br />
-                    = {mockCapacity.totalBits.toLocaleString()} bits<br />
-                    capacity = {mockCapacity.usableBytes.toLocaleString()} bytes − 32 header
-                  </code>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                Carrier Shanty Lyrics
+              </label>
+              <textarea
+                rows={4}
+                value={shantyInput}
+                onChange={(e) => setShantyInput(e.target.value)}
+                className="w-full bg-slate-950 border border-amber-900/40 rounded-lg p-3 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500"
+              />
             </div>
 
-            {/* Payload */}
-            <div className="card">
-              <div className="section-label" style={{ marginBottom: "12px" }}>
-                Payload (Sealed Envelope)
-              </div>
-              <div
-                style={{
-                  padding: "10px 12px",
-                  background: "var(--ink-4)",
-                  borderRadius: "4px",
-                  border: "1px solid var(--signal-green)",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <CheckCircle2 size={12} style={{ color: "var(--signal-green-bright)", flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--signal-green-bright)" }}>
-                    Sealed missive attached — f3a9c821
-                  </div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--parchment-3)", opacity: 0.6, marginTop: "2px" }}>
-                    Navigation Chart · AES-256-GCM + Ed25519 · 2,847 bytes
-                  </div>
-                </div>
-              </div>
-
-              <div className="section-label" style={{ marginBottom: "8px" }}>
-                Embedding Configuration
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <div>
-                  <label className="input-label">Bits per channel</label>
-                  <select className="input" defaultValue="2" aria-label="Bits per channel">
-                    <option value="1">1 bit (minimal)</option>
-                    <option value="2">2 bits (balanced)</option>
-                    <option value="4">4 bits (dense)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="input-label">Channels</label>
-                  <select className="input" defaultValue="RGB" aria-label="Pixel channels">
-                    <option>RGB (3 channels)</option>
-                    <option>R only (1 channel)</option>
-                  </select>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                Secret Payload String to Hide
+              </label>
+              <input
+                type="text"
+                value={secretPayload}
+                onChange={(e) => setSecretPayload(e.target.value)}
+                className="w-full bg-slate-950 border border-amber-900/40 rounded-lg px-4 py-2.5 text-amber-200 font-mono text-sm focus:outline-none focus:border-amber-500"
+              />
             </div>
 
             <button
-              className="btn btn-primary"
-              style={{ width: "100%", padding: "12px", fontSize: "0.8rem" }}
-              onClick={handleEmbed}
-              disabled={embedState === "embedding"}
-              aria-label="Embed payload into chart"
+              type="button"
+              onClick={handleShantyEmbed}
+              className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg flex items-center justify-center gap-2"
             >
-              {embedState === "embedding" ? (
-                <><CompassRose size={18} state="verifying" /> Sealing into Chart…</>
-              ) : embedState === "done" ? (
-                <><CheckCircle2 size={16} /> Sealed — Download Chart</>
-              ) : (
-                "🗺 Seal Missive into Chart"
-              )}
+              <Sparkles className="w-4 h-4" /> Embed Secret into Shanty (Zero-Width)
             </button>
+          </div>
 
-            {embedState === "done" && (
-              <button className="btn btn-ghost" style={{ width: "100%", fontSize: "0.75rem" }}>
-                <Download size={14} /> Download Steganographic Chart
-              </button>
+          <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+            <h2 className="text-lg font-serif font-semibold text-amber-200">
+              Steganographic Shanty Carrier & Extraction
+            </h2>
+
+            {shantyStegoOutput ? (
+              <div className="space-y-4">
+                <div className="bg-slate-950 border border-emerald-900/50 rounded-lg p-4 font-serif text-sm text-amber-100 whitespace-pre-line leading-relaxed">
+                  {shantyStegoOutput}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleShantyExtract}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-200 font-mono text-xs rounded border border-amber-900/40"
+                >
+                  Test Extract Payload from Shanty
+                </button>
+
+                {extractedShantySecret && (
+                  <div className="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded text-emerald-300 font-mono text-xs">
+                    Extracted Secret: {extractedShantySecret}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-64 border-2 border-dashed border-amber-900/30 rounded-lg flex items-center justify-center text-slate-500">
+                Click embed to generate covert shanty carrier.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Image LSB Stego */}
+      {activeTab === "image" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+            <h2 className="text-lg font-serif font-semibold text-amber-200">
+              Sail Emblem / Chart Image Carrier Selection
+            </h2>
+
+            {/* Preset Emblem Selection Buttons */}
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                Select Preset Carrier Graphic OR Upload File
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleSelectPreset("jolly")}
+                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1"
+                >
+                  <ImageLucide className="w-5 h-5 text-amber-500" /> Jolly Roger
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectPreset("chart")}
+                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1"
+                >
+                  <ImageLucide className="w-5 h-5 text-indigo-400" /> Chart Grid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectPreset("flag")}
+                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1"
+                >
+                  <ImageLucide className="w-5 h-5 text-rose-400" /> Corsair Flag
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                Custom PNG Image Upload
+              </label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={handleImageUpload}
+                className="w-full bg-slate-950 border border-amber-900/40 rounded-lg p-3 text-xs font-mono text-slate-400"
+              />
+            </div>
+
+            {selectedImage && (
+              <div className="space-y-4 pt-2">
+                <img src={selectedImage} alt="Carrier" className="max-h-48 rounded border border-amber-900/40 mx-auto" />
+                {imageCapacity && (
+                  <div className="text-xs font-mono text-amber-400 text-center">
+                    Carrier Capacity: ~{imageCapacity.usableBytes} bytes usable for payload.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleImageEmbed}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" /> Embed LSB Pixel Payload
+                </button>
+              </div>
             )}
           </div>
 
-          {/* Right: Protocol info */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <div className="card">
-              <div className="section-label" style={{ marginBottom: "16px" }}>
-                LSB Protocol Header
-              </div>
-              <div className="envelope">
-                {[
-                  ["Magic bytes", "0xDEAD 0xC1PH — identifies carrier"],
-                  ["Protocol version", "0x01 — 1 byte"],
-                  ["Payload length", "4 bytes, big-endian uint32"],
-                  ["Checksum", "SHA-256 of payload, 32 bytes"],
-                  ["Payload start", "Byte 39 onward"],
-                  ["Channels", "R, G, B (alpha untouched)"],
-                  ["Bit order", "MSB first within each pixel byte"],
-                ].map(([k, v]) => (
-                  <div key={k} className="envelope-field">
-                    <span className="envelope-key">{k}</span>
-                    <span className="envelope-value">{v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+            <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center justify-between">
+              <span>Stego Image Output & LSB Extraction</span>
+              {stegoImageOutput && (
+                <button
+                  type="button"
+                  onClick={handleDownloadStegoImage}
+                  className="text-xs font-mono text-amber-400 hover:text-amber-300 border border-amber-900/40 px-2.5 py-1 rounded flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download Stego PNG
+                </button>
+              )}
+            </h2>
 
-            <div className="card">
-              <div className="section-label" style={{ marginBottom: "12px" }}>
-                Security Properties
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {[
-                  { label: "Encrypts before hiding", ok: true },
-                  { label: "Alpha channel unmodified", ok: true },
-                  { label: "Header validates before parse", ok: true },
-                  { label: "Length check before decode", ok: true },
-                  { label: "Statistically undetectable", ok: false, note: "Basic LSB is detectable — residual risk" },
-                  { label: "Survives JPEG conversion", ok: false, note: "Lossy compression destroys LSB data" },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}
-                  >
-                    {item.ok ? (
-                      <CheckCircle2 size={12} style={{ color: "var(--signal-green-bright)", flexShrink: 0, marginTop: "2px" }} />
-                    ) : (
-                      <AlertTriangle size={12} style={{ color: "var(--signal-amber-bright)", flexShrink: 0, marginTop: "2px" }} />
-                    )}
-                    <div>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.68rem", color: "var(--parchment)" }}>
-                        {item.label}
-                      </span>
-                      {item.note && (
-                        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--signal-amber-bright)", opacity: 0.8, marginTop: "2px" }}>
-                          {item.note}
-                        </div>
-                      )}
-                    </div>
+            <canvas ref={canvasRef} className="hidden" />
+
+            {stegoImageOutput ? (
+              <div className="space-y-4 text-center">
+                <img src={stegoImageOutput} alt="Stego Output" className="max-h-48 rounded border border-emerald-900/50 mx-auto" />
+                <button
+                  type="button"
+                  onClick={handleImageExtract}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-200 font-mono text-xs rounded border border-amber-900/40"
+                >
+                  Extract LSB Payload from Image Canvas
+                </button>
+
+                {extractedImageSecret && (
+                  <div className="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded text-emerald-300 font-mono text-xs text-left">
+                    Extracted Secret: {extractedImageSecret}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* Extract tab */
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-label" style={{ marginBottom: "12px" }}>
-              Suspected Carrier Chart
-            </div>
-            <div className="chart-canvas-area" style={{ minHeight: "200px" }}>
-              <Upload size={28} style={{ color: "var(--gold-dim)", opacity: 0.5, marginBottom: "10px" }} />
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", color: "var(--parchment-3)", opacity: 0.7 }}>
-                Upload chart to inspect for hidden payload
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              style={{ width: "100%", marginTop: "16px", padding: "12px", fontSize: "0.8rem" }}
-              onClick={handleExtract}
-              disabled={extractState === "extracting"}
-              aria-label="Extract payload from chart"
-            >
-              {extractState === "extracting" ? (
-                <><CompassRose size={18} state="verifying" /> Unsealing Chart…</>
-              ) : extractState === "done" ? (
-                "Payload Extracted — Forward to Boarding Inspection →"
-              ) : (
-                "🔍 Unseal the Chart"
-              )}
-            </button>
-          </div>
-          <div className="card">
-            <div className="section-label" style={{ marginBottom: "16px" }}>Extraction Log</div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.65rem",
-                color: "var(--parchment-3)",
-                lineHeight: 2,
-                opacity: 0.7,
-              }}
-            >
-              {extractState === "idle" && "Awaiting carrier chart…"}
-              {extractState === "extracting" && (
-                <>
-                  <span style={{ color: "var(--gold)" }}>→</span> Reading LSBs from pixel channels…<br />
-                  <span style={{ color: "var(--gold)" }}>→</span> Validating magic bytes 0xDEAD 0xC1PH…<br />
-                  <span style={{ color: "var(--gold)" }}>→</span> Reading payload length header…<br />
-                  <span style={{ color: "var(--gold)" }}>→</span> Verifying SHA-256 checksum…
-                </>
-              )}
-              {extractState === "done" && (
-                <>
-                  <span style={{ color: "var(--signal-green-bright)" }}>✓</span> Magic bytes validated<br />
-                  <span style={{ color: "var(--signal-green-bright)" }}>✓</span> Payload length: 2,847 bytes<br />
-                  <span style={{ color: "var(--signal-green-bright)" }}>✓</span> Checksum match confirmed<br />
-                  <span style={{ color: "var(--signal-green-bright)" }}>✓</span> Envelope JSON deserialized<br />
-                  <span style={{ color: "var(--gold)" }}>→</span> Forward to Boarding Inspection to verify & decrypt
-                </>
-              )}
-            </div>
+            ) : (
+              <div className="h-64 border-2 border-dashed border-amber-900/30 rounded-lg flex flex-col items-center justify-center text-slate-500 text-center p-6">
+                <ImageIcon className="w-10 h-10 mb-2 text-amber-900/50" />
+                <p className="font-serif text-sm text-slate-400 font-semibold">
+                  No Stego Image Generated
+                </p>
+                <p className="text-xs font-mono text-slate-500 mt-1 max-w-xs">
+                  Select one of the preset nautical emblems on the left or upload your own PNG image, then click embed.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
