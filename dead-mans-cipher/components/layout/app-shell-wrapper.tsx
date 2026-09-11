@@ -24,7 +24,7 @@ const ROUTE_NAMES: Record<string, string> = {
 };
 
 export function AppShellWrapper({ children }: AppShellWrapperProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -44,6 +44,13 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
       router.back();
     } else {
       router.push("/");
+    }
+  };
+
+  const handleNavClick = () => {
+    // Only close drawer on mobile screens (< 1024px) so desktop sidebar stays still
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
     }
   };
 
@@ -111,21 +118,21 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
 
       {/* App Shell Content Container */}
       <div className="flex-1 flex relative">
-        {/* Sidebar Drawer Container */}
+        {/* Sidebar Drawer Container — Stationary on Desktop (lg:static lg:translate-x-0) */}
         <div
           className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-amber-900/40 transform transition-transform duration-300 ease-in-out ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            sidebarOpen ? "translate-x-0 lg:static lg:translate-x-0" : "-translate-x-full lg:hidden"
           }`}
           style={{ top: "49px" }}
         >
-          <Sidebar onNavigate={() => setSidebarOpen(false)} />
+          <Sidebar onNavigate={handleNavClick} />
         </div>
 
         {/* Mobile & Drawer Backdrop Overlay */}
         {sidebarOpen && (
           <div
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-slate-950/80 z-30 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-slate-950/80 z-30 lg:hidden backdrop-blur-sm transition-opacity"
             style={{ top: "49px" }}
           />
         )}
