@@ -81,15 +81,22 @@ export function calculateChiSquared(text: string): number {
  * Perform Caesar Cipher Shift (1 to 25)
  */
 export function caesarShift(text: string, shift: number): string {
+  const letterShift = ((shift % 26) + 26) % 26;
+  const digitShift = ((shift % 10) + 10) % 10;
+
   return text
     .split("")
     .map((char) => {
       const code = char.charCodeAt(0);
       if (code >= 65 && code <= 90) {
-        return String.fromCharCode(((code - 65 + shift) % 26) + 65);
+        return String.fromCharCode(((code - 65 + letterShift) % 26) + 65);
       }
       if (code >= 97 && code <= 122) {
-        return String.fromCharCode(((code - 97 + shift) % 26) + 97);
+        return String.fromCharCode(((code - 97 + letterShift) % 26) + 97);
+      }
+      // Digit Encryption (0-9 modulo 10)
+      if (code >= 48 && code <= 57) {
+        return String.fromCharCode(((code - 48 + digitShift) % 10) + 48);
       }
       return char;
     })

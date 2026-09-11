@@ -154,24 +154,24 @@ export default function CrackerPage() {
           <span className="text-xs font-mono text-slate-400 font-bold uppercase">Quick Preset Dispatches:</span>
           <button
             type="button"
-            onClick={() => handleLoadPreset("ATTACK PORT ROYAL AT DAWN WITH QUEEN ANNES REVENGE", 3)}
+            onClick={() => handleLoadPreset("ATTACK PORT ROYAL AT 0500 DAWN WITH 4 CANNON SQUADRONS", 3)}
             className="px-3 py-1.5 bg-slate-950 hover:bg-amber-950/40 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded-lg transition-all cursor-pointer shadow-sm"
           >
-            🏴‍☠️ Port Royal Secret (+3)
+            🏴‍☠️ Port Royal Raid 0500 (+3)
           </button>
           <button
             type="button"
-            onClick={() => handleLoadPreset("SAIL FOR TORTUGA COVE BEFORE THE SPANISH FLEET ARRIVES", 7)}
+            onClick={() => handleLoadPreset("SAIL FOR TORTUGA COVE AT LATITUDE 21N LONGITUDE 72W", 7)}
             className="px-3 py-1.5 bg-slate-950 hover:bg-amber-950/40 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded-lg transition-all cursor-pointer shadow-sm"
           >
-            🦜 Blackbeard Orders (+7)
+            🦜 Tortuga 21N 72W (+7)
           </button>
           <button
             type="button"
-            onClick={() => handleLoadPreset("FIFTEEN MEN ON THE DEAD MANS CHEST YO HO HO AND A BOTTLE OF RUM", 13)}
+            onClick={() => handleLoadPreset("FIFTEEN MEN ON DEAD MANS CHEST 15 BOTTLES OF RUM IN 1703", 13)}
             className="px-3 py-1.5 bg-slate-950 hover:bg-amber-950/40 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded-lg transition-all cursor-pointer shadow-sm"
           >
-            ⚓ Corsair Shanty (+13 ROT13)
+            ⚓ Corsair Shanty 1703 (+13 ROT13)
           </button>
         </div>
       </div>
