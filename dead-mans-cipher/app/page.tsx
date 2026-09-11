@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
 import { VerificationBadge } from "@/components/ui/verification-badges";
 import {
@@ -12,8 +13,12 @@ import {
   Activity,
   ArrowRight,
   Anchor,
+  Sun,
+  Wind,
+  CloudRain,
 } from "lucide-react";
 import Link from "next/link";
+import { getGlobalThreatAssessment, ThreatEvaluation } from "@/lib/crypto";
 
 const stats = [
   { label: "Messages Secured", value: "247", icon: Lock, trend: "+12", color: "var(--gold)" },
@@ -38,6 +43,11 @@ const severityMap = {
 };
 
 export default function QuarterdeckPage() {
+  const [threatEval, setThreatEval] = useState<ThreatEvaluation | null>(null);
+
+  useEffect(() => {
+    setThreatEval(getGlobalThreatAssessment());
+  }, []);
   return (
     <div className="animate-fade-in">
       {/* Page header */}

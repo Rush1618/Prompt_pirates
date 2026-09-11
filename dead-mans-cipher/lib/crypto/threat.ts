@@ -3,6 +3,8 @@
  * Risk Scoring, Severity Tiers, and Residual Risk Mitigation Rules
  */
 
+import { loadStoredIdentities } from "./identity";
+
 export interface ThreatFactor {
   id: string;
   category: "CIPHER" | "SIGNATURE" | "KEY_LIFECYCLE" | "TIMESTAMP" | "STEGO";
@@ -16,6 +18,7 @@ export interface ThreatFactor {
 export interface ThreatEvaluation {
   overallRiskScore: number; // 0 to 100
   riskTier: "SAFE" | "ELEVATED" | "CRITICAL";
+  stormLabel: "CALM WATERS" | "ROUGH SEAS" | "SEVERE HURRICANE";
   factors: ThreatFactor[];
   radarMetrics: {
     cipherStrength: number;
@@ -86,16 +89,20 @@ export function evaluateThreatLevel(params?: {
 
   const overallRiskScore = Math.round(weightedSum / (totalWeight || 1));
   let riskTier: "SAFE" | "ELEVATED" | "CRITICAL" = "SAFE";
+  let stormLabel: "CALM WATERS" | "ROUGH SEAS" | "SEVERE HURRICANE" = "CALM WATERS";
 
   if (overallRiskScore >= 70) {
     riskTier = "CRITICAL";
+    stormLabel = "SEVERE HURRICANE";
   } else if (overallRiskScore >= 30) {
     riskTier = "ELEVATED";
+    stormLabel = "ROUGH SEAS";
   }
 
   return {
     overallRiskScore,
     riskTier,
+    stormLabel,
     factors,
     radarMetrics: {
       cipherStrength: cipherAlgo === "AES-256-GCM" ? 98 : 88,
@@ -105,4 +112,16 @@ export function evaluateThreatLevel(params?: {
       stegoStealth: 92,
     },
   };
+}
+
+/**
+ * Get current system-wide global threat assessment based on stored identities
+ */
+export function getGlobalThreatAssessment(): ThreatEvaluation {
+  const identities = loadStoredIdentities();
+  const hasBlackspot = identities.some((i) => i.state === "BLACKSPOT");
+  const hasAnchored = identities.some((i) => i.state === "ANCHORED");
+
+  const keyState = hasBlackspot ? "BLACKSPOT" : hasAnchored ? "ANCHORED" : "SAILING";
+  return evaluateThreatLevel({ keyState });
 }

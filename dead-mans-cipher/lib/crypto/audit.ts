@@ -56,8 +56,11 @@ export async function getAuditChain(): Promise<AuditLogEntry[]> {
   const t1 = new Date(now.getTime() - 3600000 * 5).toISOString();
   const t2 = new Date(now.getTime() - 3600000 * 3).toISOString();
 
-  const h1 = await sha256Hex(`${GENESIS_HASH}:IDENTITY_CREATED:Captain Blackbeard:Genesis keypair generated`);
-  const h2 = await sha256Hex(`${h1}:ENCRYPTION_EXECUTED:Captain Blackbeard:Encrypted treasure coordinates`);
+  const details1 = "Genesis Ed25519 identity created (0x9f4a...2c81)";
+  const details2 = "AES-256-GCM cipher payload created for 17.9241° N, 76.8122° W";
+
+  const h1 = await sha256Hex(`${GENESIS_HASH}:1:${t1}:IDENTITY_CREATED:Captain Blackbeard:${details1}`);
+  const h2 = await sha256Hex(`${h1}:2:${t2}:ENCRYPTION_EXECUTED:Captain Blackbeard:${details2}`);
 
   const initialChain: AuditLogEntry[] = [
     {
@@ -66,7 +69,7 @@ export async function getAuditChain(): Promise<AuditLogEntry[]> {
       timestamp: t1,
       eventType: "IDENTITY_CREATED",
       actor: "Captain Blackbeard",
-      details: "Genesis Ed25519 identity created (0x9f4a...2c81)",
+      details: details1,
       previousHash: GENESIS_HASH,
       currentHash: h1,
       severity: "INFO",
@@ -77,7 +80,7 @@ export async function getAuditChain(): Promise<AuditLogEntry[]> {
       timestamp: t2,
       eventType: "ENCRYPTION_EXECUTED",
       actor: "Captain Blackbeard",
-      details: "AES-256-GCM cipher payload created for 17.9241° N, 76.8122° W",
+      details: details2,
       previousHash: h1,
       currentHash: h2,
       severity: "INFO",
@@ -89,6 +92,18 @@ export async function getAuditChain(): Promise<AuditLogEntry[]> {
   } catch {}
 
   return initialChain;
+}
+
+/**
+ * Reset local storage audit log back to genesis state
+ */
+export async function resetAuditChain(): Promise<AuditLogEntry[]> {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem(STORAGE_AUDIT_KEY);
+    } catch {}
+  }
+  return getAuditChain();
 }
 
 /**

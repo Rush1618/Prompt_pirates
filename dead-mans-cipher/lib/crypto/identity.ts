@@ -82,12 +82,18 @@ export async function generatePirateIdentity(
     }
   } catch (err) {
     // Fallback keypair generation for environments without WebCrypto subtle support
-    const randHex = (len: number) =>
-      Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    const randBase64Url = (len: number) => {
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = Math.floor(Math.random() * 256);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    };
 
     algorithm = "Ed25519";
-    publicKeyJwk = { kty: "OKP", crv: "Ed25519", x: randHex(32) };
-    privateKeyJwk = { kty: "OKP", crv: "Ed25519", d: randHex(32), x: publicKeyJwk.x };
+    const x = randBase64Url(32);
+    publicKeyJwk = { kty: "OKP", crv: "Ed25519", x };
+    privateKeyJwk = { kty: "OKP", crv: "Ed25519", d: randBase64Url(32), x };
   }
 
   let fingerprint = "0x9f4a...2c81";

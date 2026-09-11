@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
-import { Shield, CheckCircle2, AlertTriangle, RefreshCw, Hash, Lock } from "lucide-react";
-import { getAuditChain, verifyAuditChainIntegrity, AuditLogEntry } from "@/lib/crypto";
+import { Shield, CheckCircle2, AlertTriangle, RefreshCw, Hash, Lock, RotateCcw } from "lucide-react";
+import { getAuditChain, verifyAuditChainIntegrity, resetAuditChain, AuditLogEntry } from "@/lib/crypto";
+import { nauticalAudio } from "@/lib/audio";
 
 export default function AuditPage() {
   const [chain, setChain] = useState<AuditLogEntry[]>([]);
@@ -28,6 +29,21 @@ export default function AuditPage() {
     setIsVerifying(true);
     const res = await verifyAuditChainIntegrity(chain);
     setVerificationResult(res);
+    if (res.isValid) {
+      nauticalAudio.playBell();
+    } else {
+      nauticalAudio.playAlarm();
+    }
+    setIsVerifying(false);
+  };
+
+  const handleResetChain = async () => {
+    setIsVerifying(true);
+    const data = await resetAuditChain();
+    setChain(data);
+    const res = await verifyAuditChainIntegrity(data);
+    setVerificationResult(res);
+    nauticalAudio.playBell();
     setIsVerifying(false);
   };
 
@@ -76,14 +92,26 @@ export default function AuditPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleVerifyNow}
-            disabled={isVerifying}
-            className="text-xs font-mono bg-slate-900 hover:bg-slate-800 border border-amber-900/50 px-3 py-1.5 rounded flex items-center gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isVerifying ? "animate-spin" : ""}`} /> Re-verify Chain
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetChain}
+              disabled={isVerifying}
+              className="text-xs font-mono bg-slate-900 hover:bg-slate-800 border border-amber-900/50 px-3 py-1.5 rounded flex items-center gap-1.5 text-amber-400"
+              title="Reset Chain to Genesis"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reset Log
+            </button>
+
+            <button
+              type="button"
+              onClick={handleVerifyNow}
+              disabled={isVerifying}
+              className="text-xs font-mono bg-slate-900 hover:bg-slate-800 border border-amber-900/50 px-3 py-1.5 rounded flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isVerifying ? "animate-spin" : ""}`} /> Re-verify Chain
+            </button>
+          </div>
         </div>
       )}
 

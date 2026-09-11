@@ -2,39 +2,78 @@
 
 import { useState } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
-import { MapPin, Lock, Upload, AlertTriangle, CheckCircle2, Shield, Feather, Key, Play } from "lucide-react";
+import { MapPin, Lock, Upload, AlertTriangle, CheckCircle2, Shield, Feather, Key, Play, Sparkles } from "lucide-react";
 import {
   inspectAndDecryptPayload,
   extractPayloadFromShantyText,
+  embedPayloadInShantyText,
+  encryptCoordinates,
+  generatePirateIdentity,
   appendAuditEvent,
   loadStoredIdentities,
   DMCPayloadWire,
   InspectionReport,
 } from "@/lib/crypto";
+import { nauticalAudio } from "@/lib/audio";
 
 export default function InspectPage() {
   const [rawInput, setRawInput] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [inspectionReport, setInspectionReport] = useState<InspectionReport | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [extractedShantyText, setExtractedShantyText] = useState<string | null>(null);
 
-  // Replay Attack & Demo Simulation Quick Options
-  const handleLoadSamplePayload = () => {
-    const samplePayload: DMCPayloadWire = {
-      magic: "DMC1",
-      version: 1,
-      cipher: "AES-256-GCM",
-      iv: "YmFzZTY0aXY=",
-      salt: "YmFzZTY0c2FsdA==",
-      ciphertext: "c2VjcmV0Q29vcmRpbmF0ZXNQYXlsb2Fk",
-      signature: "RWQyNTUxOVNpZ25hdHVyZUJ5dGVz",
-      pubKey: { kty: "OKP", crv: "Ed25519", x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" },
-      timestamp: new Date().toISOString(),
-      senderCaptain: "Captain Blackbeard",
-      senderShip: "Queen Anne's Revenge",
-    };
-    setRawInput(JSON.stringify(samplePayload, null, 2));
-    setPassphrase("crimson-kraken-blackbeard-9418");
+  // 1. Preset Real Sample: Port Royal Encrypted Payload
+  const handleLoadPortRoyalSample = async () => {
+    setIsVerifying(true);
+    try {
+      const defaultId = await generatePirateIdentity("Captain Blackbeard", "Queen Anne's Revenge");
+      saveStoredIdentities([defaultId, ...loadStoredIdentities()]);
+
+      const passphraseStr = "crimson-kraken-blackbeard-9418";
+      const payload = await encryptCoordinates(
+        "17.9241° N, 76.8122° W (Port Royal Treasure Vault)",
+        passphraseStr,
+        defaultId,
+        "AES-256-GCM"
+      );
+      setRawInput(JSON.stringify(payload, null, 2));
+      setPassphrase(passphraseStr);
+      setExtractedShantyText(null);
+      nauticalAudio.playClick();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // 2. Preset Real Sample: Sea Shanty Zero-Width Stego Carrier
+  const handleLoadShantyStegoSample = async () => {
+    setIsVerifying(true);
+    try {
+      const defaultId = await generatePirateIdentity("Captain Calico Jack", "The Ranger");
+      saveStoredIdentities([defaultId, ...loadStoredIdentities()]);
+
+      const passphraseStr = "scurvy-doubloon-calico-4219";
+      const payload = await encryptCoordinates(
+        "20.0543° N, 72.8790° W (Tortuga Island Secret Cove)",
+        passphraseStr,
+        defaultId,
+        "AES-256-GCM"
+      );
+      const shantyLyrics = "What shall we do with a drunken sailor?\nWhat shall we do with a drunken sailor?\nWay ho and up she rises!\nEarly in the morning!";
+      const stego = embedPayloadInShantyText(shantyLyrics, JSON.stringify(payload));
+
+      setRawInput(stego.stegoText);
+      setPassphrase(passphraseStr);
+      setExtractedShantyText(stego.stegoText);
+      nauticalAudio.playClick();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleInspect = async () => {
@@ -48,8 +87,10 @@ export default function InspectPage() {
       const extractedStegoStr = extractPayloadFromShantyText(rawInput);
       if (extractedStegoStr) {
         parsedPayload = JSON.parse(extractedStegoStr);
+        setExtractedShantyText(rawInput);
       } else {
         parsedPayload = JSON.parse(rawInput);
+        setExtractedShantyText(null);
       }
     } catch {
       // Invalid JSON input fallback structure for gate error demonstration
@@ -73,6 +114,12 @@ export default function InspectPage() {
     const trustedIdentities = loadStoredIdentities();
     const report = await inspectAndDecryptPayload(parsedPayload, passphrase, trustedIdentities);
     setInspectionReport(report);
+
+    if (report.overallSuccess) {
+      nauticalAudio.playBell();
+    } else {
+      nauticalAudio.playAlarm();
+    }
 
     // Append event to audit log
     await appendAuditEvent(
@@ -99,7 +146,7 @@ export default function InspectPage() {
             Message Verification & 6-Gate Audit
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Verify digital signatures, check key state, audit timestamp freshness, and decrypt coordinates.
+            Verify digital signatures, check key state, audit timestamp freshness, and decrypt secret coordinates & messages.
           </p>
         </div>
         <div className="w-16 h-16 relative opacity-80">
@@ -108,19 +155,32 @@ export default function InspectPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column: Input Payload */}
+        {/* Left Column: Input Payload & Preset Sample Loaders */}
         <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
-          <div className="flex items-center justify-between">
+          <div className="space-y-2">
             <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
               <Upload className="w-5 h-5 text-amber-500" /> Incoming Payload or Shanty Text
             </h2>
-            <button
-              type="button"
-              onClick={handleLoadSamplePayload}
-              className="text-xs font-mono text-amber-400 hover:text-amber-300 border border-amber-900/40 px-2.5 py-1 rounded"
-            >
-              Load Sample Payload
-            </button>
+            <p className="text-xs font-mono text-slate-400">
+              Click a real sample preset below to test WebCrypto decryption:
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleLoadPortRoyalSample}
+                className="py-2 px-3 bg-slate-950 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded flex items-center gap-1.5 transition-all text-left"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" /> Port Royal Preset
+              </button>
+              <button
+                type="button"
+                onClick={handleLoadShantyStegoSample}
+                className="py-2 px-3 bg-slate-950 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded flex items-center gap-1.5 transition-all text-left"
+              >
+                <Feather className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Shanty Stego Preset
+              </button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -128,7 +188,7 @@ export default function InspectPage() {
               Paste Encrypted Payload JSON or Carrier Shanty
             </label>
             <textarea
-              rows={8}
+              rows={7}
               value={rawInput}
               onChange={(e) => setRawInput(e.target.value)}
               placeholder="Paste JSON wire payload or Sea Shanty text containing zero-width hidden bytes..."
@@ -194,15 +254,32 @@ export default function InspectPage() {
                 </div>
               </div>
 
-              {/* Revealed Coordinates if passed */}
+              {/* Revealed Decrypted Message Box */}
               {inspectionReport.overallSuccess && inspectionReport.decryptedCoordinates && (
-                <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-4 space-y-2">
-                  <div className="text-xs font-mono text-amber-400 uppercase tracking-wider flex items-center gap-1.5 font-bold">
-                    <MapPin className="w-4 h-4 text-amber-500" /> Decrypted Maritime Coordinates
+                <div className="bg-slate-950 border border-amber-500/50 rounded-xl p-5 space-y-3 shadow-lg">
+                  <div className="text-xs font-mono text-amber-400 uppercase tracking-wider flex items-center justify-between font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-amber-500" /> Decrypted Secret Message / Coordinates
+                    </span>
+                    <span className="text-[10px] text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded">
+                      {inspectionReport.cipherAlgorithm}
+                    </span>
                   </div>
-                  <div className="font-mono text-base font-bold text-amber-200 bg-amber-950/30 p-3 rounded border border-amber-900/40">
+
+                  <div className="font-mono text-base font-bold text-amber-200 bg-amber-950/40 p-4 rounded-lg border border-amber-900/60 leading-relaxed">
                     {inspectionReport.decryptedCoordinates}
                   </div>
+
+                  {extractedShantyText && (
+                    <div className="pt-2 space-y-1">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase flex items-center gap-1">
+                        <Feather className="w-3 h-3 text-emerald-400" /> Extracted Carrier Shanty Text
+                      </div>
+                      <div className="text-xs font-serif text-slate-300 italic bg-slate-900/80 p-2.5 rounded border border-amber-900/30 whitespace-pre-line">
+                        {extractedShantyText}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -248,7 +325,7 @@ export default function InspectPage() {
                 Awaiting Inspection Task
               </p>
               <p className="text-xs font-mono text-slate-500 mt-1 max-w-xs">
-                Paste an incoming ciphertext or click "Load Sample Payload" to run the 6-gate audit check.
+                Click "Port Royal Preset" or "Shanty Stego Preset" above to load real encrypted WebCrypto sample payloads and run decryption!
               </p>
             </div>
           )}

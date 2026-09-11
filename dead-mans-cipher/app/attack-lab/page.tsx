@@ -9,6 +9,7 @@ import {
   DMCPayloadWire,
   InspectionReport,
 } from "@/lib/crypto";
+import { nauticalAudio } from "@/lib/audio";
 
 interface AttackScenario {
   id: string;
@@ -124,6 +125,13 @@ export default function AttackLabPage() {
     const report = await inspectAndDecryptPayload(payload, passphrase, []);
     setLastReport(report);
 
+    // Audio cue: play bell when attack is successfully blocked, alarm if bypassed
+    if (!report.overallSuccess) {
+      nauticalAudio.playBell();
+    } else {
+      nauticalAudio.playAlarm();
+    }
+
     await appendAuditEvent(
       "ATTACK_SIMULATED",
       "Kraken Attack Lab",
@@ -152,6 +160,17 @@ export default function AttackLabPage() {
         <div className="w-16 h-16 relative opacity-80">
           <CompassRose ringColor="#e11d48" arrowColor="#f43f5e" />
         </div>
+      </div>
+
+      {/* Explanatory Defense Benchmark Banner */}
+      <div className="p-4 rounded-xl bg-slate-900 border border-emerald-500/40 font-mono text-xs text-amber-100 space-y-1">
+        <div className="font-bold text-emerald-400 flex items-center gap-2">
+          <Shield className="w-4 h-4" /> Defense Benchmark Mode
+        </div>
+        <p className="text-slate-300">
+          In this trial, you launch hostile naval attacks (forged signatures, replay attacks, bit-flips).
+          <strong className="text-emerald-300"> Your defense engine SHOULD block every single attack!</strong> When a gate rejects a malicious payload, your cryptosystem is functioning 100% correctly.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -187,7 +206,7 @@ export default function AttackLabPage() {
                   disabled={isRunning}
                   className="mt-3 py-2 px-4 bg-rose-900/80 hover:bg-rose-800 text-rose-100 font-mono text-xs font-bold rounded flex items-center gap-1.5 transition-all"
                 >
-                  <Play className="w-3.5 h-3.5" /> Execute Attack Simulator
+                  <Play className="w-3.5 h-3.5" /> Launch Hostile Attack Payload
                 </button>
               </div>
             ))}
@@ -217,12 +236,12 @@ export default function AttackLabPage() {
                 <div>
                   <h3 className="font-serif font-bold text-lg">
                     {!lastReport.overallSuccess
-                      ? "ATTACK BLOCKED — DEFENSE GATES HELD FIRM"
+                      ? "DEFENSE SUCCESS — ATTACK BLOCKED & REJECTED"
                       : "ATTACK BYPASSED DEFENSES (WARNING)"}
                   </h3>
                   <p className="text-xs font-mono text-slate-300 mt-0.5">
                     {!lastReport.overallSuccess
-                      ? `Caught by gate check: ${lastReport.gates.find(g => !g.passed)?.code}`
+                      ? `Threat caught by gate check: ${lastReport.gates.find(g => !g.passed)?.code}`
                       : "Payload was unexpectedly authorized."}
                   </p>
                 </div>
@@ -236,16 +255,23 @@ export default function AttackLabPage() {
                     className={`p-3 rounded-lg border flex items-start gap-3 text-xs font-mono ${
                       g.passed
                         ? "bg-slate-950 border-emerald-900/40 text-slate-300"
-                        : "bg-rose-950/50 border-rose-500/80 text-rose-200 font-bold"
+                        : "bg-amber-950/60 border-amber-500/80 text-amber-200 font-bold"
                     }`}
                   >
                     {g.passed ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     ) : (
-                      <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     )}
                     <div>
-                      <div>{g.gate} — <span className="underline">{g.code}</span></div>
+                      <div className="flex items-center gap-2">
+                        {g.gate}
+                        <span className={`px-2 py-0.5 rounded text-[10px] ${
+                          g.passed ? "bg-emerald-950 text-emerald-400" : "bg-amber-950 text-amber-300 border border-amber-800"
+                        }`}>
+                          {g.passed ? "PASSED" : `BLOCKED AT GATE: ${g.code}`}
+                        </span>
+                      </div>
                       <div className="text-[11px] text-slate-400 font-normal mt-0.5">{g.detail}</div>
                     </div>
                   </div>

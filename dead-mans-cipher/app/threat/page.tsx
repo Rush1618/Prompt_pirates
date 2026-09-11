@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
-import { Shield, AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
-import { evaluateThreatLevel, CipherAlgorithm, KeyLifecycleState } from "@/lib/crypto";
+import { Shield, AlertTriangle, CheckCircle2, RefreshCw, CloudRain, Sun, Wind } from "lucide-react";
+import { evaluateThreatLevel, getGlobalThreatAssessment, CipherAlgorithm, KeyLifecycleState } from "@/lib/crypto";
 
 export default function ThreatPage() {
   const [cipherAlgo, setCipherAlgo] = useState<CipherAlgorithm>("AES-256-GCM");
   const [keyState, setKeyState] = useState<KeyLifecycleState>("SAILING");
   const [hasSignature, setHasSignature] = useState(true);
   const [ageHours, setAgeHours] = useState(0.5);
+
+  useEffect(() => {
+    // Load global system threat defaults on mount
+    const globalEval = getGlobalThreatAssessment();
+    if (globalEval.riskTier === "CRITICAL") {
+      setKeyState("BLACKSPOT");
+    } else if (globalEval.riskTier === "ELEVATED") {
+      setKeyState("ANCHORED");
+    }
+  }, []);
 
   const evaluation = useMemo(
     () =>
@@ -42,6 +52,47 @@ export default function ThreatPage() {
         </div>
       </div>
 
+      {/* Global Storm Condition Banner */}
+      <div
+        className={`p-6 rounded-xl border flex items-center justify-between transition-all ${
+          evaluation.riskTier === "SAFE"
+            ? "bg-emerald-950/40 border-emerald-500/60 text-emerald-200"
+            : evaluation.riskTier === "ELEVATED"
+            ? "bg-amber-950/40 border-amber-500/60 text-amber-200"
+            : "bg-rose-950/50 border-rose-500/80 text-rose-200 animate-pulse"
+        }`}
+      >
+        <div className="flex items-center gap-4">
+          {evaluation.riskTier === "SAFE" ? (
+            <Sun className="w-10 h-10 text-emerald-400 shrink-0" />
+          ) : evaluation.riskTier === "ELEVATED" ? (
+            <Wind className="w-10 h-10 text-amber-400 shrink-0" />
+          ) : (
+            <CloudRain className="w-10 h-10 text-rose-400 shrink-0" />
+          )}
+          <div>
+            <div className="text-xs font-mono uppercase tracking-widest opacity-80">
+              Current Maritime Weather & Threat Condition
+            </div>
+            <h2 className="font-serif font-bold text-2xl tracking-wide mt-0.5">
+              CONDITION: {evaluation.stormLabel}
+            </h2>
+            <p className="text-xs font-mono text-slate-300 mt-1">
+              {evaluation.riskTier === "SAFE"
+                ? "Smooth sailing. All cryptographic keys active (SAILING) with AES-256-GCM and valid Ed25519 signatures."
+                : evaluation.riskTier === "ELEVATED"
+                ? "Rough seas ahead. Some keys are expired/rotated or timestamps are aging."
+                : "SEVERE HURRICANE WARNING! Black Spot key compromise or missing digital signatures detected!"}
+            </p>
+          </div>
+        </div>
+
+        <div className="text-right font-mono hidden md:block">
+          <div className="text-3xl font-bold">{evaluation.overallRiskScore} / 100</div>
+          <div className="text-xs uppercase opacity-75">{evaluation.riskTier} TIER</div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Column 1: Configuration Parameters */}
         <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
@@ -69,9 +120,9 @@ export default function ThreatPage() {
                 onChange={(e) => setKeyState(e.target.value as KeyLifecycleState)}
                 className="w-full bg-slate-950 border border-amber-900/40 rounded p-2 text-amber-200"
               >
-                <option value="SAILING">Sailing (Active & Trusted)</option>
-                <option value="ANCHORED">Anchored (Expired)</option>
-                <option value="BLACKSPOT">Black Spot (Compromised!)</option>
+                <option value="SAILING">Sailing (Calm — Active & Trusted)</option>
+                <option value="ANCHORED">Anchored (Rough — Expired)</option>
+                <option value="BLACKSPOT">Black Spot (Severe — Compromised!)</option>
               </select>
             </div>
 
