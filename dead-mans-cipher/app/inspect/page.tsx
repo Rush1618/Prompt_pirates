@@ -11,6 +11,7 @@ import {
   generatePirateIdentity,
   appendAuditEvent,
   loadStoredIdentities,
+  saveStoredIdentities,
   DMCPayloadWire,
   InspectionReport,
 } from "@/lib/crypto";
