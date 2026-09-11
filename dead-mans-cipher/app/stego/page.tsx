@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
-import { Upload, Download, Feather, ImageIcon, Sparkles, CheckCircle2, AlertTriangle, Image as ImageLucide } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { NauticalMap } from "@/components/ui/nautical-map";
+import { Upload, Download, Feather, ImageIcon, Sparkles, CheckCircle2, AlertTriangle, Image as ImageLucide, MapPin } from "lucide-react";
 import {
   embedPayloadInShantyText,
   extractPayloadFromShantyText,
@@ -211,6 +213,8 @@ export default function StegoPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <BackButton />
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
         <div>
@@ -275,22 +279,47 @@ export default function StegoPage() {
               />
             </div>
 
+            {/* Interactive Nautical Map & Preset Location Selection */}
             <div className="space-y-2">
-              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
-                Secret Payload String to Hide
+              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Secret Message / Treasure Location Payload</span>
+                <span className="text-[10px] text-amber-500 font-mono">Select from Map or Type</span>
               </label>
+
+              {/* Map selector */}
+              <NauticalMap
+                selectedCoordinates={secretPayload}
+                onSelectCoordinates={(coords, name) => {
+                  setSecretPayload(`${coords} (${name})`);
+                  nauticalAudio.playClick();
+                }}
+              />
+
               <input
                 type="text"
                 value={secretPayload}
                 onChange={(e) => setSecretPayload(e.target.value)}
+                placeholder="e.g. 17.9241° N, 76.8122° W (Port Royal Vault)"
                 className="w-full bg-slate-950 border border-amber-900/40 rounded-lg px-4 py-2.5 text-amber-200 font-mono text-sm focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                Carrier Shanty Lyrics
+              </label>
+              <textarea
+                rows={3}
+                value={shantyInput}
+                onChange={(e) => setShantyInput(e.target.value)}
+                className="w-full bg-slate-950 border border-amber-900/40 rounded-lg p-3 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500"
               />
             </div>
 
             <button
               type="button"
               onClick={handleShantyEmbed}
-              className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg flex items-center justify-center gap-2"
+              className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-95 transition-all"
             >
               <Sparkles className="w-4 h-4" /> Embed Secret into Shanty (Zero-Width)
             </button>
@@ -310,7 +339,7 @@ export default function StegoPage() {
                 <button
                   type="button"
                   onClick={handleShantyExtract}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-200 font-mono text-xs rounded border border-amber-900/40"
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-200 font-mono text-xs rounded border border-amber-900/40 cursor-pointer"
                 >
                   Test Extract Payload from Shanty
                 </button>
@@ -322,8 +351,14 @@ export default function StegoPage() {
                 )}
               </div>
             ) : (
-              <div className="h-64 border-2 border-dashed border-amber-900/30 rounded-lg flex items-center justify-center text-slate-500">
-                Click embed to generate covert shanty carrier.
+              <div className="h-64 border-2 border-dashed border-amber-900/30 rounded-lg flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+                <Feather className="w-8 h-8 mb-2 text-amber-900/50" />
+                <p className="font-serif text-sm text-slate-400 font-semibold">
+                  No Shanty Carrier Generated Yet
+                </p>
+                <p className="text-xs font-mono text-slate-500 mt-1 max-w-xs">
+                  Select location on nautical map or type payload above, then click embed.
+                </p>
               </div>
             )}
           </div>
@@ -338,6 +373,29 @@ export default function StegoPage() {
               Sail Emblem / Chart Image Carrier Selection
             </h2>
 
+            {/* Secret Payload Input & Map for Image Stego */}
+            <div className="space-y-2 border-b border-amber-900/30 pb-4">
+              <label className="text-xs font-mono text-amber-400 uppercase tracking-wider flex items-center justify-between font-bold">
+                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-amber-500" /> Select Location from Map or Type Message</span>
+              </label>
+
+              <NauticalMap
+                selectedCoordinates={secretPayload}
+                onSelectCoordinates={(coords, name) => {
+                  setSecretPayload(`${coords} (${name})`);
+                  nauticalAudio.playClick();
+                }}
+              />
+
+              <input
+                type="text"
+                value={secretPayload}
+                onChange={(e) => setSecretPayload(e.target.value)}
+                placeholder="Type secret location or message..."
+                className="w-full bg-slate-950 border border-amber-900/40 rounded-lg px-4 py-2.5 text-amber-200 font-mono text-sm focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
             {/* Preset Emblem Selection Buttons */}
             <div className="space-y-2">
               <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
@@ -347,21 +405,21 @@ export default function StegoPage() {
                 <button
                   type="button"
                   onClick={() => handleSelectPreset("jolly")}
-                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1"
+                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1 cursor-pointer"
                 >
                   <ImageLucide className="w-5 h-5 text-amber-500" /> Jolly Roger
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSelectPreset("chart")}
-                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1"
+                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1 cursor-pointer"
                 >
                   <ImageLucide className="w-5 h-5 text-indigo-400" /> Chart Grid
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSelectPreset("flag")}
-                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1"
+                  className="p-2.5 bg-slate-950 border border-amber-900/40 hover:border-amber-500 rounded-lg text-xs font-mono text-amber-200 flex flex-col items-center gap-1 cursor-pointer"
                 >
                   <ImageLucide className="w-5 h-5 text-rose-400" /> Corsair Flag
                 </button>
@@ -382,7 +440,7 @@ export default function StegoPage() {
 
             {selectedImage && (
               <div className="space-y-4 pt-2">
-                <img src={selectedImage} alt="Carrier" className="max-h-48 rounded border border-amber-900/40 mx-auto" />
+                <img src={selectedImage} alt="Carrier" className="max-h-48 rounded border border-amber-900/40 mx-auto shadow-md" />
                 {imageCapacity && (
                   <div className="text-xs font-mono text-amber-400 text-center">
                     Carrier Capacity: ~{imageCapacity.usableBytes} bytes usable for payload.
@@ -391,9 +449,9 @@ export default function StegoPage() {
                 <button
                   type="button"
                   onClick={handleImageEmbed}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded-lg flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-95 transition-all"
                 >
-                  <Sparkles className="w-4 h-4" /> Embed LSB Pixel Payload
+                  <Sparkles className="w-4 h-4" /> Embed LSB Pixel Payload into Image
                 </button>
               </div>
             )}

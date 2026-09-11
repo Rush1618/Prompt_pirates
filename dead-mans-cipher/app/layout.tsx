@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
+import { AppShellWrapper } from "@/components/layout/app-shell-wrapper";
 
 export const metadata: Metadata = {
   title: "Dead Man's Cipher — Maritime Cryptographic Workbench",
@@ -25,15 +25,7 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <div className="prototype-banner" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999, borderRadius: 0, borderLeft: 'none', borderRight: 'none' }}>
-          ⚠ HACKATHON / EDUCATIONAL PROTOTYPE — NOT A PRODUCTION SECURE MESSENGER — DO NOT USE FOR REAL SENSITIVE COMMUNICATIONS
-        </div>
-        <div className="app-shell" style={{ marginTop: '32px' }}>
-          <Sidebar />
-          <main className="main-content hex-grid-bg" role="main">
-            {children}
-          </main>
-        </div>
+        <AppShellWrapper>{children}</AppShellWrapper>
       </body>
     </html>
   );

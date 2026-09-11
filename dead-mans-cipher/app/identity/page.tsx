@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
+import { BackButton } from "@/components/ui/back-button";
 import {
   Key,
   Shield,
@@ -158,6 +159,8 @@ export default function IdentityPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <BackButton />
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
         <div>

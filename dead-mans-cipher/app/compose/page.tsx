@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { CompassRose } from "@/components/ui/compass-rose";
 import { NauticalMap } from "@/components/ui/nautical-map";
+import { BackButton } from "@/components/ui/back-button";
 import { nauticalAudio } from "@/lib/audio";
 import {
   Lock,
@@ -16,6 +18,7 @@ import {
   Eye,
   EyeOff,
   Feather,
+  ImageIcon,
 } from "lucide-react";
 import {
   generatePirateIdentity,
@@ -63,8 +66,42 @@ export default function ComposePage() {
     init();
   }, []);
 
+  const PIRATE_LOCATIONS = [
+    "17.9241° N, 76.8122° W (Port Royal Treasure Vault)",
+    "21.8988° N, 72.2472° W (Tortuga Buccaneer Cove)",
+    "25.0343° N, 77.3963° W (Nassau Pirate Stronghold)",
+    "18.4655° N, 66.1057° W (San Juan Corsair Citadel)",
+    "24.5551° N, 81.7800° W (Key West Smuggler's Reef)",
+    "12.1165° N, 68.9335° W (Curaçao Gold Cache)",
+  ];
+
+  const PIRATE_SHANTIES = [
+    "What shall we do with a drunken sailor?\nWhat shall we do with a drunken sailor?\nWay ho and up she rises!\nEarly in the morning!",
+    "Leave her, Johnny, leave her!\nFor the voyage is done and the winds do blow\nAnd it's time for us to go!",
+    "Fifteen men on the dead man's chest—\nYo-ho-ho, and a bottle of rum!\nDrink and the devil had done for the rest—\nYo-ho-ho, and a bottle of rum!",
+    "Oh, the smartest clipper you can find\nIs the Hooghly packet for the Black Ball Line\nBlow boys, blow, for Califor-ni-o!",
+  ];
+
   const handleGeneratePassphrase = () => {
     setPassphrase(generatePiratePassphrase());
+  };
+
+  const handleRandomize = () => {
+    nauticalAudio.playClick();
+    const randomLoc = PIRATE_LOCATIONS[Math.floor(Math.random() * PIRATE_LOCATIONS.length)];
+    const randomShanty = PIRATE_SHANTIES[Math.floor(Math.random() * PIRATE_SHANTIES.length)];
+    const randomPass = generatePiratePassphrase();
+    const randomAlgo: CipherAlgorithm = Math.random() > 0.5 ? "AES-256-GCM" : "ChaCha20-Poly1305";
+
+    setCoordinates(randomLoc);
+    setShantyLyrics(randomShanty);
+    setPassphrase(randomPass);
+    setCipherAlgo(randomAlgo);
+
+    if (identities.length > 0) {
+      const randomId = identities[Math.floor(Math.random() * identities.length)];
+      setSelectedIdentity(randomId);
+    }
   };
 
   const handleEncrypt = async () => {
@@ -110,6 +147,8 @@ export default function ComposePage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <BackButton />
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
         <div>
@@ -131,9 +170,19 @@ export default function ComposePage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column: Form Inputs */}
         <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
-          <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-amber-500" /> Message Payload & Key Parameters
-          </h2>
+          <div className="flex items-center justify-between gap-2 border-b border-amber-900/20 pb-3">
+            <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-amber-500" /> Message Payload & Key Parameters
+            </h2>
+            <button
+              type="button"
+              onClick={handleRandomize}
+              className="px-3 py-1.5 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 border border-amber-500/60 text-amber-200 font-mono text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95 hover:border-amber-400"
+              title="Generate random pirate coordinates, passphrase, identity & shanty"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-amber-400" /> 🎲 Roll Random Missive
+            </button>
+          </div>
 
           {/* Identity Selection */}
           <div className="space-y-2">
@@ -311,6 +360,17 @@ export default function ComposePage() {
                   </p>
                 </div>
               )}
+
+              {/* Image Steganography Action CTA */}
+              <div className="pt-4 border-t border-amber-900/30">
+                <Link
+                  href="/stego"
+                  className="w-full py-3 px-4 bg-slate-950 hover:bg-amber-950/40 border border-amber-900/50 hover:border-amber-500 text-amber-300 font-mono text-xs rounded-lg flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer group"
+                >
+                  <ImageIcon className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                  Hide Payload in Sail Emblem / Chart Image (Image LSB Steganography) →
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="h-80 border-2 border-dashed border-amber-900/30 rounded-lg flex flex-col items-center justify-center text-slate-500 p-6 text-center">

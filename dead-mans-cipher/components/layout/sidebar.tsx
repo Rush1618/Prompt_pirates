@@ -51,7 +51,11 @@ const navItems = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const [isMuted, setIsMuted] = useState(false);
 
@@ -68,12 +72,17 @@ export function Sidebar() {
       {/* Logo */}
       <div className="sidebar-logo">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <Link
+            href="/"
+            onClick={() => onNavigate?.()}
+            className="flex items-center gap-3 group hover:opacity-90 transition-opacity cursor-pointer"
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
             <CompassRose size={36} />
             <div>
-              <h1>Dead Man's<br />Cipher</h1>
+              <h1 className="group-hover:text-amber-300 transition-colors">Dead Man's<br />Cipher</h1>
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={handleToggleAudio}
@@ -111,6 +120,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => onNavigate?.()}
                   className={`nav-item ${isActive ? "active" : ""}`}
                   aria-current={isActive ? "page" : undefined}
                 >
