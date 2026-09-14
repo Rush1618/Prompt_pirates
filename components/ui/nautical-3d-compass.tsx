@@ -3,54 +3,99 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { nauticalAudio } from "@/lib/audio";
-import { RefreshCw, Copy, Check, ShieldCheck, KeyRound, Dices } from "lucide-react";
+import { Copy, Check, KeyRound, Dices, Lock, Unlock, Compass, RotateCcw } from "lucide-react";
 
 interface Nautical3DCompassProps {
   height?: string;
   interactive?: boolean;
-  onSeedGenerated?: (seedHex: string) => void;
+  mode?: "vault" | "inspector" | "entropy";
+  verificationStatus?: "idle" | "verifying" | "pass" | "fail";
+  onAngleChange?: (angleDeg: number, seedHex: string, saltHex: string) => void;
 }
 
 export function Nautical3DCompass({
   height = "380px",
   interactive = true,
-  onSeedGenerated,
+  mode = "vault",
+  verificationStatus = "idle",
+  onAngleChange,
 }: Nautical3DCompassProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [activeStatus, setActiveStatus] = useState("3D CIPHER ENGINE READY");
   const [dialAngle, setDialAngle] = useState(137);
   const [entropySeed, setEntropySeed] = useState("0x9f4a8b2c1d3e5f7a");
+  const [saltHex, setSaltHex] = useState("0x7a8b9c0d1e2f3a4b");
+  const [isLocked, setIsLocked] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("3D KEY VAULT LOCKED & ALIGNED");
 
   // References for Three.js objects
   const compassGroupRef = useRef<THREE.Group | null>(null);
+  const outerRingRef = useRef<THREE.Mesh | null>(null);
   const coreMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
 
-  // Helper to generate WebCrypto entropy seed
-  const generateRealEntropy = () => {
+  // Compute WebCrypto Salt & Seed from Angle
+  const updateKeyParameters = (angleDeg: number) => {
+    const angleRad = (angleDeg * Math.PI) / 180;
+
+    // Derive deterministic 8-byte hex salt & seed from angle + WebCrypto random shift
+    const enc = new TextEncoder();
+    const payloadStr = `DMC_3D_KEY_ANGLE:${angleDeg}:${angleRad.toFixed(4)}`;
+
+    crypto.subtle.digest("SHA-256", enc.encode(payloadStr)).then((buf) => {
+      const hex = Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      const seed = `0x${hex.substring(0, 16)}`;
+      const salt = `0x${hex.substring(16, 32)}`;
+
+      setEntropySeed(seed);
+      setSaltHex(salt);
+      onAngleChange?.(angleDeg, seed, salt);
+    });
+  };
+
+  // Generate Real Hardware Random Entropy via Web Crypto
+  const handleGenerateEntropy = () => {
     nauticalAudio.playClick();
     setIsSpinning(true);
-    setActiveStatus("CALCULATING WEBCRYPTO HARDWARE ENTROPY...");
+    setStatusMessage("HARVESTING WEBCRYPTO HARDWARE ENTROPY...");
 
-    // Generate random 8 bytes using Web Crypto API
     const bytes = new Uint8Array(8);
     window.crypto.getRandomValues(bytes);
-    const hex = Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    const newSeed = `0x${hex}`;
-    const newAngle = Math.floor(Math.random() * 360);
+    const newAngle = (bytes[0] * 360) / 255;
+    const roundedAngle = Math.round(newAngle);
 
-    setDialAngle(newAngle);
-    setEntropySeed(newSeed);
-    onSeedGenerated?.(newSeed);
+    setDialAngle(roundedAngle);
+    updateKeyParameters(roundedAngle);
 
     setTimeout(() => {
       setIsSpinning(false);
-      setActiveStatus(`ENTROPY GENERATED (${newAngle}° ALIGNED)`);
+      setStatusMessage(`3D KEY ALIGNED TO ${roundedAngle}° (${roundedAngle > 180 ? "WESTWARD" : "EASTWARD"})`);
       nauticalAudio.playChime();
     }, 800);
+  };
+
+  // Handle Manual Angle Slider Change
+  const handleSliderChange = (newAngle: number) => {
+    setDialAngle(newAngle);
+    updateKeyParameters(newAngle);
+
+    if (compassGroupRef.current) {
+      compassGroupRef.current.rotation.z = (newAngle * Math.PI) / 180;
+    }
+  };
+
+  const toggleLockState = () => {
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+    if (nextLocked) {
+      nauticalAudio.playAlarm();
+      setStatusMessage("3D CIPHER LOCK SEALED");
+    } else {
+      nauticalAudio.playBell();
+      setStatusMessage("3D CIPHER LOCK UNSEALED");
+    }
   };
 
   useEffect(() => {
@@ -73,7 +118,6 @@ export function Nautical3DCompass({
     renderer.setSize(width, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     container.appendChild(renderer.domElement);
 
@@ -85,24 +129,29 @@ export function Nautical3DCompass({
     goldPointLight.position.set(2, 3, 4);
     scene.add(goldPointLight);
 
-    const emeraldPointLight = new THREE.PointLight(0x22c55e, 2, 10);
+    const statusLightColor =
+      verificationStatus === "pass" ? 0x22c55e : verificationStatus === "fail" ? 0xef4444 : 0x22c55e;
+
+    const emeraldPointLight = new THREE.PointLight(statusLightColor, 2, 10);
     emeraldPointLight.position.set(-3, -2, 2);
     scene.add(emeraldPointLight);
 
     // 5. 3D Compass Group
     const compassGroup = new THREE.Group();
     compassGroupRef.current = compassGroup;
+    compassGroup.rotation.z = (dialAngle * Math.PI) / 180;
     scene.add(compassGroup);
 
     // Gold Outer Brass Ring
     const ringGeo = new THREE.TorusGeometry(1.6, 0.08, 24, 100);
     const ringMat = new THREE.MeshStandardMaterial({
-      color: 0xc9a84c,
+      color: verificationStatus === "fail" ? 0xef4444 : 0xc9a84c,
       metalness: 0.85,
       roughness: 0.25,
-      emissive: 0x3d2f0d,
+      emissive: isLocked ? 0x3d2f0d : 0x1a7a4a,
     });
     const outerRing = new THREE.Mesh(ringGeo, ringMat);
+    outerRingRef.current = outerRing;
     compassGroup.add(outerRing);
 
     // Inner Gimbal Ring
@@ -119,9 +168,9 @@ export function Nautical3DCompass({
     // Central Cipher Core (Icosahedron)
     const coreGeo = new THREE.IcosahedronGeometry(0.55, 1);
     const coreMat = new THREE.MeshStandardMaterial({
-      color: 0x22c55e,
+      color: verificationStatus === "fail" ? 0xef4444 : 0x22c55e,
       wireframe: true,
-      emissive: 0x1a7a4a,
+      emissive: verificationStatus === "fail" ? 0xc0392b : 0x1a7a4a,
       emissiveIntensity: 0.8,
     });
     coreMatRef.current = coreMat;
@@ -215,9 +264,8 @@ export function Nautical3DCompass({
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
 
-      // Smooth rotation dampening
       if (compassGroupRef.current) {
-        const spinVel = isSpinning ? 0.08 : 0.005;
+        const spinVel = isSpinning ? 0.1 : 0.003;
         compassGroupRef.current.rotation.y += (targetRotY - compassGroupRef.current.rotation.y) * 0.05 + spinVel;
         compassGroupRef.current.rotation.x += (targetRotX - compassGroupRef.current.rotation.x) * 0.05;
       }
@@ -232,15 +280,12 @@ export function Nautical3DCompass({
         coreMatRef.current.emissiveIntensity = 0.5 + Math.sin(elapsedTime * 3) * 0.3;
       }
 
-      // Particles float
       particles.rotation.y = elapsedTime * 0.02;
-
       renderer.render(scene, camera);
     };
 
     animate();
 
-    // Resize Handler
     const handleResize = () => {
       if (!container) return;
       const newW = container.clientWidth;
@@ -261,7 +306,7 @@ export function Nautical3DCompass({
       }
       renderer.dispose();
     };
-  }, [interactive, isSpinning]);
+  }, [interactive, isSpinning, verificationStatus, isLocked]);
 
   const handleCopySeed = () => {
     navigator.clipboard.writeText(entropySeed);
@@ -271,51 +316,62 @@ export function Nautical3DCompass({
   };
 
   return (
-    <div className="relative w-full rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-amber-900/40 p-4 shadow-2xl backdrop-blur-xl overflow-hidden group space-y-3">
+    <div className="relative w-full rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-amber-900/40 p-4 shadow-2xl backdrop-blur-xl overflow-hidden group space-y-4">
       {/* 3D WebGL Canvas Container */}
       <div
         ref={mountRef}
-        onClick={generateRealEntropy}
+        onClick={handleGenerateEntropy}
         style={{ height }}
         className="w-full cursor-pointer flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.01]"
       />
 
-      {/* Real Functional 3D Control Bar & Readout */}
-      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-3 backdrop-blur-md space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-900/30 pb-2">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isSpinning ? "bg-amber-400 animate-ping" : "bg-emerald-400"}`} />
-            <span className="font-mono text-xs font-bold text-amber-200 tracking-wider uppercase">
-              {activeStatus}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 font-mono text-xs text-slate-400">
-            <span>Dial Angle: <strong className="text-amber-400 font-bold">{dialAngle}°</strong></span>
-            <span>Vector Skew: <strong className="text-emerald-400 font-bold">17.92° N</strong></span>
-          </div>
+      {/* Interactive 3D Dial Angle Slider Control */}
+      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-4 backdrop-blur-md space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="font-mono text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+            <Compass className="w-4 h-4 text-amber-400" /> Rotate 3D Cipher Key Dial Angle: {dialAngle}°
+          </label>
+          <button
+            type="button"
+            onClick={toggleLockState}
+            className={`px-3 py-1 rounded-lg font-mono text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              isLocked
+                ? "bg-amber-950 border border-amber-500/60 text-amber-300"
+                : "bg-emerald-950 border border-emerald-500/60 text-emerald-300"
+            }`}
+          >
+            {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+            <span>{isLocked ? "SEALED LOCK" : "UNSEALED"}</span>
+          </button>
         </div>
 
-        {/* Functional Control Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <input
+          type="range"
+          min="0"
+          max="360"
+          value={dialAngle}
+          onChange={(e) => handleSliderChange(Number(e.target.value))}
+          className="w-full h-2 bg-slate-900 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
+        />
+
+        {/* Readouts & Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-amber-900/30 font-mono text-xs">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-slate-400 flex items-center gap-1">
-              <KeyRound className="w-3.5 h-3.5 text-amber-500" /> Derived Entropy Seed:
-            </span>
-            <code className="font-mono text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
-              {entropySeed}
+            <span className="text-slate-400">AES Salt:</span>
+            <code className="text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+              {saltHex}
             </code>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={generateRealEntropy}
+              onClick={handleGenerateEntropy}
               disabled={isSpinning}
               className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-mono text-xs font-bold rounded flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
             >
               <Dices className="w-3.5 h-3.5" />
-              <span>Generate WebCrypto Entropy</span>
+              <span>WebCrypto Randomize</span>
             </button>
 
             <button

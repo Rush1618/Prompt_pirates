@@ -197,7 +197,7 @@ export default function ComposePage() {
             </div>
             <Nautical3DCompass
               height="320px"
-              onSeedGenerated={(seed) => {
+              onAngleChange={(_angle, seed) => {
                 setPassphrase(`pirate-key-${seed}`);
                 nauticalAudio.playChime();
               }}

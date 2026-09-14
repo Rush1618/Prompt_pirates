@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CompassRose } from "@/components/ui/compass-rose";
 import { BackButton } from "@/components/ui/back-button";
+import { Nautical3DCompass } from "@/components/ui/nautical-3d-compass";
 import { MapPin, Lock, Upload, AlertTriangle, CheckCircle2, Shield, Feather, Key, Play, Sparkles } from "lucide-react";
 import {
   inspectAndDecryptPayload,
@@ -223,11 +224,31 @@ export default function InspectPage() {
           </button>
         </div>
 
-        {/* Right Column: 6-Gate Audit Inspection Report */}
+        {/* Right Column: 6-Gate Audit Inspection Report & 3D Verifier */}
         <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
-          <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-amber-500" /> 6-Gate Inspection Report
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-amber-500" /> 6-Gate Inspection Report
+            </h2>
+            <span className="font-mono text-xs text-amber-400">
+              3D Key Alignment Inspector
+            </span>
+          </div>
+
+          {/* Interactive 3D WebGL Key Inspector */}
+          <Nautical3DCompass
+            height="260px"
+            mode="inspector"
+            verificationStatus={
+              isVerifying
+                ? "verifying"
+                : inspectionReport
+                ? inspectionReport.overallSuccess
+                  ? "pass"
+                  : "fail"
+                : "idle"
+            }
+          />
 
           {inspectionReport ? (
             <div className="space-y-6">
