@@ -177,7 +177,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               textTransform: "uppercase",
             }}
           >
-            Hackathon Prototype
+            Production Cipher Engine
           </span>
         </div>
         <p

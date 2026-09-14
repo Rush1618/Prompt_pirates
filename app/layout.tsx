@@ -5,7 +5,7 @@ import { AppShellWrapper } from "@/components/layout/app-shell-wrapper";
 export const metadata: Metadata = {
   title: "Dead Man's Cipher — Maritime Cryptographic Workbench",
   description:
-    "A hackathon/educational cybersecurity workbench demonstrating authenticated encryption, digital signatures, steganography, and tamper-evident auditing in a pirate-themed interface.",
+    "A high-performance cybersecurity workbench demonstrating authenticated encryption, digital signatures, steganography, and tamper-evident auditing in a pirate-themed interface.",
   keywords: ["cryptography", "security", "AES-GCM", "steganography", "education"],
   icons: {
     icon: "/logo.jpg",
