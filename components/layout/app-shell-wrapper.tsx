@@ -21,6 +21,7 @@ const ROUTE_NAMES: Record<string, string> = {
   "/cracker": "Cipher Cracker",
   "/threat": "Storm Warning",
   "/audit": "Ship's Log",
+  "/blog": "Ghost Ship Dispatches",
 };
 
 export function AppShellWrapper({ children }: AppShellWrapperProps) {

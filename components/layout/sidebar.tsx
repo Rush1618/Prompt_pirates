@@ -15,6 +15,7 @@ import {
   Skull,
   Volume2,
   VolumeX,
+  BookOpen,
 } from "lucide-react";
 import { CompassRose } from "@/components/ui/compass-rose";
 import { nauticalAudio } from "@/lib/audio";
@@ -24,6 +25,7 @@ const navItems = [
     section: "Command",
     items: [
       { href: "/", label: "The Quarterdeck", subLabel: "Dashboard", icon: LayoutDashboard },
+      { href: "/blog", label: "Ghost Ship Dispatches", subLabel: "Technical Blogs & Chronicles", icon: BookOpen },
     ],
   },
   {
