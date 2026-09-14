@@ -104,14 +104,19 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
 
         {/* Header Right Controls */}
         <div className="flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] tracking-wider uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Cipher Ready (AES-GCM / Ed25519)</span>
+          </div>
+
           <button
             type="button"
             onClick={handleToggleAudio}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-amber-900/40 text-amber-400 hover:text-amber-300 font-mono text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-amber-900/40 text-amber-400 hover:text-amber-300 font-mono text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
             title={isMuted ? "Unmute Audio" : "Mute Audio"}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-slate-500" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
-            <span className="hidden sm:inline text-[11px]">{isMuted ? "Muted" : "Audio On"}</span>
+            {isMuted ? <VolumeX className="w-4 h-4 text-slate-500" /> : <Volume2 className="w-4 h-4 text-amber-400 animate-pulse" />}
+            <span className="hidden sm:inline text-[11px] font-medium">{isMuted ? "Muted" : "Audio On"}</span>
           </button>
         </div>
       </header>

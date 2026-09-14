@@ -29,8 +29,27 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## 🚀 Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Option 1: Deploy with Vercel CLI
+Run the following commands from the project root (`dead-mans-cipher`):
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Install Vercel CLI globally (if not already installed)
+npm install -g vercel
+
+# Deploy preview build
+vercel
+
+# Deploy production build
+vercel --prod
+```
+
+### Option 2: Deploy via GitHub / Vercel Dashboard
+1. Push this repository to GitHub (`Prompt_pirates`).
+2. Go to [Vercel Dashboard](https://vercel.com/new).
+3. Import the `dead-mans-cipher` directory from your repository.
+4. Framework Preset will auto-detect **Next.js**.
+5. Click **Deploy**.
+
+> **Note**: *Dead Man's Cipher* performs authenticated encryption (AES-256-GCM), digital signatures (Ed25519), and steganography client-side using native Web Crypto APIs. No external database or server API keys are required!
