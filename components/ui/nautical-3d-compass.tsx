@@ -10,7 +10,14 @@ interface Nautical3DCompassProps {
   interactive?: boolean;
   mode?: "vault" | "inspector" | "entropy";
   verificationStatus?: "idle" | "verifying" | "pass" | "fail";
-  onAngleChange?: (outerAngleDeg: number, innerAngleDeg: number, seedHex: string, saltHex: string) => void;
+  onAngleChange?: (
+    outerAngleDeg: number,
+    innerAngleDeg: number,
+    seedHex: string,
+    saltHex: string,
+    outerHexKey: string,
+    innerHexKey: string
+  ) => void;
 }
 
 export function Nautical3DCompass({
@@ -24,6 +31,8 @@ export function Nautical3DCompass({
   const [isSpinning, setIsSpinning] = useState(false);
   const [outerAngle, setOuterAngle] = useState(137);
   const [innerAngle, setInnerAngle] = useState(76);
+  const [outerHexKey, setOuterHexKey] = useState("0x9f4a8b2c");
+  const [innerHexKey, setInnerHexKey] = useState("0x1d3e5f7a");
   const [entropySeed, setEntropySeed] = useState("0x9f4a8b2c1d3e5f7a");
   const [saltHex, setSaltHex] = useState("0x7a8b9c0d1e2f3a4b");
   const [isLocked, setIsLocked] = useState(true);
@@ -36,21 +45,33 @@ export function Nautical3DCompass({
   const innerRingRef = useRef<THREE.Mesh | null>(null);
   const coreMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
 
-  // Compute WebCrypto Salt & Seed from Bi-Directional Angles
+  // Compute Hex Numbers & Letters Encryption Keys from Dual 3D Rings
   const updateKeyParameters = (outerDeg: number, innerDeg: number) => {
     const enc = new TextEncoder();
-    const payloadStr = `DMC_DUAL_3D_KEY:${outerDeg}:${innerDeg}`;
+    const outerStr = `DMC_OUTER_HEX_KEY:${outerDeg}`;
+    const innerStr = `DMC_INNER_HEX_KEY:${innerDeg}`;
 
-    crypto.subtle.digest("SHA-256", enc.encode(payloadStr)).then((buf) => {
-      const hex = Array.from(new Uint8Array(buf))
+    Promise.all([
+      crypto.subtle.digest("SHA-256", enc.encode(outerStr)),
+      crypto.subtle.digest("SHA-256", enc.encode(innerStr)),
+    ]).then(([outerBuf, innerBuf]) => {
+      const hOuter = Array.from(new Uint8Array(outerBuf))
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-      const seed = `0x${hex.substring(0, 16)}`;
-      const salt = `0x${hex.substring(16, 32)}`;
+      const hInner = Array.from(new Uint8Array(innerBuf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 
-      setEntropySeed(seed);
-      setSaltHex(salt);
-      onAngleChange?.(outerDeg, innerDeg, seed, salt);
+      const hex1 = `0x${hOuter.substring(0, 8)}`;
+      const hex2 = `0x${hInner.substring(0, 8)}`;
+      const fullSeed = `${hex1}${hex2.replace("0x", "")}`;
+      const fullSalt = `0x${hOuter.substring(8, 16)}${hInner.substring(8, 16)}`;
+
+      setOuterHexKey(hex1);
+      setInnerHexKey(hex2);
+      setEntropySeed(fullSeed);
+      setSaltHex(fullSalt);
+      onAngleChange?.(outerDeg, innerDeg, fullSeed, fullSalt, hex1, hex2);
     });
   };
 
@@ -71,7 +92,7 @@ export function Nautical3DCompass({
 
     setTimeout(() => {
       setIsSpinning(false);
-      setStatusMessage(`DUAL RINGS ALIGNED: OUTER ${newOuter}° N × INNER ${newInner}° W`);
+      setStatusMessage(`DUAL RINGS ALIGNED: OUTER ${outerHexKey} × INNER ${innerHexKey}`);
       nauticalAudio.playChime();
     }, 800);
   };
@@ -334,88 +355,88 @@ export function Nautical3DCompass({
   };
 
   return (
-    <div className="relative w-full rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-amber-900/40 p-4 shadow-2xl backdrop-blur-xl overflow-hidden group space-y-4">
+    <div className="relative w-full rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-amber-900/40 p-3 sm:p-4 shadow-2xl backdrop-blur-xl overflow-hidden group space-y-3 sm:space-y-4">
       {/* 3D WebGL Canvas Container */}
       <div
         ref={mountRef}
         onClick={handleGenerateEntropy}
         style={{ height }}
-        className="w-full cursor-pointer flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.01]"
+        className="w-full cursor-pointer flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.01] touch-manipulation"
       />
 
-      {/* Bi-Directional Dual Ring Controls (Outer Ring = Latitude | Inner Ring = Longitude) */}
-      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-4 backdrop-blur-md space-y-4">
+      {/* Bi-Directional Dual Ring Controls with Hex Numbers & Letters Encryption Keys */}
+      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-3 sm:p-4 backdrop-blur-md space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between border-b border-amber-900/30 pb-2">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-amber-400" />
-            <span className="font-mono text-xs font-bold text-amber-200 uppercase tracking-wider">
-              Dual 3D Concentric Ring Controls
+            <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-mono text-[11px] sm:text-xs font-bold text-amber-200 uppercase tracking-wider">
+              Dual 3D Key Controls
             </span>
           </div>
           <button
             type="button"
             onClick={toggleLockState}
-            className={`px-3 py-1 rounded-lg font-mono text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg font-mono text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               isLocked
                 ? "bg-amber-950 border border-amber-500/60 text-amber-300"
                 : "bg-emerald-950 border border-emerald-500/60 text-emerald-300"
             }`}
           >
             {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-            <span>{isLocked ? "SEALED LOCK" : "UNSEALED"}</span>
+            <span>{isLocked ? "SEALED" : "UNSEALED"}</span>
           </button>
         </div>
 
         {/* Dual Ring Sliders */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Outer Ring Slider (Number before X) */}
-          <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-lg border border-amber-900/30">
-            <div className="flex justify-between items-center font-mono text-xs">
-              <span className="text-amber-300 font-bold">Outer Ring (Number before X):</span>
-              <span className="text-emerald-400 font-bold font-mono">X = {outerAngle}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+          {/* Outer Ring Slider (Hex Key Block 1 before X) */}
+          <div className="space-y-1.5 bg-slate-900/60 p-2.5 sm:p-3 rounded-lg border border-amber-900/30">
+            <div className="flex justify-between items-center font-mono text-[11px] sm:text-xs">
+              <span className="text-amber-300 font-bold truncate">Outer (Key Block 1):</span>
+              <span className="text-emerald-400 font-bold font-mono ml-2 shrink-0">{outerHexKey}</span>
             </div>
             <input
               type="range"
               min="0"
-              max="500"
+              max="360"
               value={outerAngle}
               onChange={(e) => handleOuterSliderChange(Number(e.target.value))}
-              className="w-full h-2 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              className="w-full h-3 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500 touch-none"
             />
           </div>
 
-          {/* Inner Ring Slider (Number after X) */}
-          <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-lg border border-amber-900/30">
-            <div className="flex justify-between items-center font-mono text-xs">
-              <span className="text-amber-300 font-bold">Inner Ring (Number after X):</span>
-              <span className="text-emerald-400 font-bold font-mono">Y = {innerAngle}</span>
+          {/* Inner Ring Slider (Hex Key Block 2 after X) */}
+          <div className="space-y-1.5 bg-slate-900/60 p-2.5 sm:p-3 rounded-lg border border-amber-900/30">
+            <div className="flex justify-between items-center font-mono text-[11px] sm:text-xs">
+              <span className="text-amber-300 font-bold truncate">Inner (Key Block 2):</span>
+              <span className="text-emerald-400 font-bold font-mono ml-2 shrink-0">{innerHexKey}</span>
             </div>
             <input
               type="range"
               min="0"
-              max="500"
+              max="360"
               value={innerAngle}
               onChange={(e) => handleInnerSliderChange(Number(e.target.value))}
-              className="w-full h-2 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              className="w-full h-3 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500 touch-none"
             />
           </div>
         </div>
 
         {/* Readouts & Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-amber-900/30 font-mono text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400">Position Vector:</span>
-            <code className="text-amber-300 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
-              X: {outerAngle} × Y: {innerAngle}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-amber-900/30 font-mono text-[11px] sm:text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-slate-400">Combined Key:</span>
+            <code className="text-amber-300 font-bold bg-amber-950/60 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded border border-amber-800/40 break-all">
+              {outerHexKey} × {innerHexKey}
             </code>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={handleGenerateEntropy}
               disabled={isSpinning}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-mono text-xs font-bold rounded flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+              className="flex-1 sm:flex-none px-3 py-2 sm:py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-mono text-xs font-bold rounded flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer min-h-[38px] sm:min-h-[32px]"
             >
               <Dices className="w-3.5 h-3.5" />
               <span>Bi-Directional Entropy</span>
@@ -424,7 +445,7 @@ export function Nautical3DCompass({
             <button
               type="button"
               onClick={handleCopySeed}
-              className="px-3 py-1.5 bg-slate-900 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+              className="px-3 py-2 sm:py-1.5 bg-slate-900 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer min-h-[38px] sm:min-h-[32px]"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? "Copied!" : "Copy Seed"}</span>

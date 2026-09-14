@@ -34,7 +34,7 @@ import {
 } from "@/lib/crypto";
 
 export default function ComposePage() {
-  const [coordinates, setCoordinates] = useState("17.9241° N, 76.8122° W (Port Royal Treasure Vault)");
+  const [coordinates, setCoordinates] = useState("0x9f4a8b2c × 0x1d3e5f7a (Port Royal Treasure Vault Key)");
   const [passphrase, setPassphrase] = useState("");
   const [showPassphrase, setShowPassphrase] = useState(false);
   const [cipherAlgo, setCipherAlgo] = useState<CipherAlgorithm>("AES-256-GCM");
@@ -68,12 +68,12 @@ export default function ComposePage() {
   }, []);
 
   const PIRATE_LOCATIONS = [
-    "17.9241° N, 76.8122° W (Port Royal Treasure Vault)",
-    "21.8988° N, 72.2472° W (Tortuga Buccaneer Cove)",
-    "25.0343° N, 77.3963° W (Nassau Pirate Stronghold)",
-    "18.4655° N, 66.1057° W (San Juan Corsair Citadel)",
-    "24.5551° N, 81.7800° W (Key West Smuggler's Reef)",
-    "12.1165° N, 68.9335° W (Curaçao Gold Cache)",
+    "0x9f4a8b2c × 0x1d3e5f7a (Port Royal Treasure Vault Key)",
+    "0xa4e12c8b × 0x3d7f9e12 (Tortuga Buccaneer Cipher)",
+    "0xc8b14a9f × 0x5e2d1f4a (Nassau Pirate Cryptogram)",
+    "0x1f4a9b2c × 0x8e3d5f7a (San Juan Corsair Key)",
+    "0x7a8b9c0d × 0x2e1f4a9b (Key West Smuggler's Token)",
+    "0x3d5f7a9b × 0x9c0d1e2f (Curaçao Gold Key)",
   ];
 
   const PIRATE_SHANTIES = [
@@ -147,30 +147,30 @@ export default function ComposePage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <BackButton />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-900/30 pb-6 gap-4">
         <div>
-          <div className="flex items-center gap-2 text-amber-500 text-sm font-mono tracking-wider uppercase mb-1">
+          <div className="flex items-center gap-2 text-amber-500 text-xs sm:text-sm font-mono tracking-wider uppercase mb-1">
             <Lock className="w-4 h-4" /> Covert Encryption Deck
           </div>
-          <h1 className="text-3xl font-bold font-serif text-amber-100">
+          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-amber-100">
             Cipher Workshop — Compose & Encrypt
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">
             Encrypt maritime coordinates with WebCrypto AES-256-GCM, sign with Ed25519, and embed into carrier shanties.
           </p>
         </div>
-        <div className="w-16 h-16 relative opacity-80">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 relative opacity-80 shrink-0 hidden sm:block">
           <CompassRose ringColor="#d97706" arrowColor="#f59e0b" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Left Column: Form Inputs */}
-        <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+        <div className="space-y-4 sm:space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-4 sm:p-6 backdrop-blur-md">
           <div className="flex items-center justify-between gap-2 border-b border-amber-900/20 pb-3">
             <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
               <Shield className="w-5 h-5 text-amber-500" /> Message Payload & Key Parameters
@@ -197,8 +197,10 @@ export default function ComposePage() {
             </div>
             <Nautical3DCompass
               height="320px"
-              onAngleChange={(outerVal, innerVal, seed) => {
-                setCoordinates(`X: ${outerVal}, Y: ${innerVal} (Treasure Coordinates)`);
+              onAngleChange={(_outerVal, _innerVal, seed, _salt, outerHexKey, innerHexKey) => {
+                const combinedHexKey =
+                  outerHexKey && innerHexKey ? `${outerHexKey} × ${innerHexKey}` : `0x9f4a8b2c × 0x1d3e5f7a`;
+                setCoordinates(`${combinedHexKey} (Dual Concentric Cipher Key)`);
                 setPassphrase(`pirate-key-${seed}`);
                 nauticalAudio.playChime();
               }}

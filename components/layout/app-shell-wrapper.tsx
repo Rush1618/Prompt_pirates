@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, ArrowLeft, Anchor, Volume2, VolumeX, Shield } from "lucide-react";
 import Link from "next/link";
@@ -24,12 +24,19 @@ const ROUTE_NAMES: Record<string, string> = {
 };
 
 export function AppShellWrapper({ children }: AppShellWrapperProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
   const currentTitle = ROUTE_NAMES[pathname] || "Deck";
+
+  // Automatically open sidebar on desktop viewports (>= 1024px)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setSidebarOpen(true);
+    }
+  }, []);
 
   const handleToggleAudio = () => {
     const muted = nauticalAudio.toggleMute();
@@ -143,7 +150,7 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 p-6 md:p-8 hex-grid-bg overflow-x-hidden min-h-[calc(100vh-49px)]">
+        <main className="flex-1 p-3 sm:p-6 md:p-8 hex-grid-bg overflow-x-hidden w-full max-w-full min-h-[calc(100vh-49px)]">
           {children}
         </main>
       </div>

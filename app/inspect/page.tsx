@@ -138,30 +138,30 @@ export default function InspectPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <BackButton />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-amber-900/30 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-900/30 pb-6 gap-4">
         <div>
-          <div className="flex items-center gap-2 text-amber-500 text-sm font-mono tracking-wider uppercase mb-1">
+          <div className="flex items-center gap-2 text-amber-500 text-xs sm:text-sm font-mono tracking-wider uppercase mb-1">
             <Shield className="w-4 h-4" /> Boarding Inspection Deck
           </div>
-          <h1 className="text-3xl font-bold font-serif text-amber-100">
+          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-amber-100">
             Message Verification & 6-Gate Audit
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">
             Verify digital signatures, check key state, audit timestamp freshness, and decrypt secret coordinates & messages.
           </p>
         </div>
-        <div className="w-16 h-16 relative opacity-80">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 relative opacity-80 shrink-0 hidden sm:block">
           <CompassRose ringColor="#d97706" arrowColor="#f59e0b" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Left Column: Input Payload & Preset Sample Loaders */}
-        <div className="space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-6 backdrop-blur-md">
+        <div className="space-y-4 sm:space-y-6 bg-slate-900/60 border border-amber-900/30 rounded-xl p-4 sm:p-6 backdrop-blur-md">
           <div className="space-y-2">
             <h2 className="text-lg font-serif font-semibold text-amber-200 flex items-center gap-2">
               <Upload className="w-5 h-5 text-amber-500" /> Incoming Payload or Shanty Text

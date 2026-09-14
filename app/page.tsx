@@ -133,7 +133,7 @@ export default function QuarterdeckPage() {
       </div>
 
       {/* Live Stats Grid (Real Data) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {liveStats.map((stat, i) => {
           const Icon = stat.icon;
           return (
