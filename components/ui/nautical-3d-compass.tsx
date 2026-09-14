@@ -368,32 +368,32 @@ export function Nautical3DCompass({
 
         {/* Dual Ring Sliders */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Outer Ring Slider (Latitude / No. before X) */}
+          {/* Outer Ring Slider (Number before X) */}
           <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-lg border border-amber-900/30">
             <div className="flex justify-between items-center font-mono text-xs">
-              <span className="text-amber-300 font-bold">Outer Ring (Lat / Before X):</span>
-              <span className="text-emerald-400 font-bold font-mono">{outerAngle}° N</span>
+              <span className="text-amber-300 font-bold">Outer Ring (Number before X):</span>
+              <span className="text-emerald-400 font-bold font-mono">X = {outerAngle}</span>
             </div>
             <input
               type="range"
               min="0"
-              max="360"
+              max="500"
               value={outerAngle}
               onChange={(e) => handleOuterSliderChange(Number(e.target.value))}
               className="w-full h-2 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
             />
           </div>
 
-          {/* Inner Ring Slider (Longitude / No. after X) */}
+          {/* Inner Ring Slider (Number after X) */}
           <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-lg border border-amber-900/30">
             <div className="flex justify-between items-center font-mono text-xs">
-              <span className="text-amber-300 font-bold">Inner Ring (Long / After X):</span>
-              <span className="text-emerald-400 font-bold font-mono">{innerAngle}° W</span>
+              <span className="text-amber-300 font-bold">Inner Ring (Number after X):</span>
+              <span className="text-emerald-400 font-bold font-mono">Y = {innerAngle}</span>
             </div>
             <input
               type="range"
               min="0"
-              max="360"
+              max="500"
               value={innerAngle}
               onChange={(e) => handleInnerSliderChange(Number(e.target.value))}
               className="w-full h-2 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
@@ -404,9 +404,9 @@ export function Nautical3DCompass({
         {/* Readouts & Buttons */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-amber-900/30 font-mono text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">Coordinates:</span>
+            <span className="text-slate-400">Position Vector:</span>
             <code className="text-amber-300 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
-              {outerAngle}° N × {innerAngle}° W
+              X: {outerAngle} × Y: {innerAngle}
             </code>
           </div>
 

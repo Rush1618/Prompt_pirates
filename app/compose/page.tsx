@@ -197,8 +197,8 @@ export default function ComposePage() {
             </div>
             <Nautical3DCompass
               height="320px"
-              onAngleChange={(outerDeg, innerDeg, seed) => {
-                setCoordinates(`${outerDeg}.000° N, ${innerDeg}.000° W (Treasure Coordinates)`);
+              onAngleChange={(outerVal, innerVal, seed) => {
+                setCoordinates(`X: ${outerVal}, Y: ${innerVal} (Treasure Coordinates)`);
                 setPassphrase(`pirate-key-${seed}`);
                 nauticalAudio.playChime();
               }}
