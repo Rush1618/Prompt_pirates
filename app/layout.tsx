@@ -7,6 +7,16 @@ export const metadata: Metadata = {
   description:
     "A hackathon/educational cybersecurity workbench demonstrating authenticated encryption, digital signatures, steganography, and tamper-evident auditing in a pirate-themed interface.",
   keywords: ["cryptography", "security", "AES-GCM", "steganography", "education"],
+  icons: {
+    icon: "/logo.jpg",
+    shortcut: "/logo.jpg",
+    apple: "/logo.jpg",
+  },
+  openGraph: {
+    title: "Dead Man's Cipher — Maritime Cryptographic Workbench",
+    description: "Authenticated encryption, digital signatures & 3D WebGL key hardware engine.",
+    images: [{ url: "/logo.jpg", width: 800, height: 800, alt: "Dead Man's Cipher Emblem" }],
+  },
 };
 
 export default function RootLayout({

@@ -78,7 +78,11 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             className="flex items-center gap-3 group hover:opacity-90 transition-opacity cursor-pointer"
             style={{ textDecoration: "none", color: "inherit" }}
           >
-            <CompassRose size={36} />
+            <img
+              src="/logo.jpg"
+              alt="Dead Man's Cipher Emblem"
+              className="w-10 h-10 rounded-full border border-amber-500/50 shadow-md group-hover:scale-105 transition-transform"
+            />
             <div>
               <h1 className="group-hover:text-amber-300 transition-colors">Dead Man's<br />Cipher</h1>
             </div>
