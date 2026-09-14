@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { CompassRose } from "@/components/ui/compass-rose";
 import { NauticalMap } from "@/components/ui/nautical-map";
+import { Nautical3DCompass } from "@/components/ui/nautical-3d-compass";
 import { BackButton } from "@/components/ui/back-button";
 import { nauticalAudio } from "@/lib/audio";
 import {
@@ -182,6 +183,25 @@ export default function ComposePage() {
             >
               <RefreshCw className="w-3.5 h-3.5 text-amber-400" /> 🎲 Roll Random Missive
             </button>
+          </div>
+
+          {/* 3D WebGL Entropy Seed Generator */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-amber-400 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> 3D Entropy Generator & Key Dial
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                Click 3D core to generate WebCrypto seed
+              </span>
+            </div>
+            <Nautical3DCompass
+              height="320px"
+              onSeedGenerated={(seed) => {
+                setPassphrase(`pirate-key-${seed}`);
+                nauticalAudio.playChime();
+              }}
+            />
           </div>
 
           {/* Identity Selection */}

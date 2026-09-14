@@ -3,23 +3,62 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { nauticalAudio } from "@/lib/audio";
+import { RefreshCw, Copy, Check, ShieldCheck, KeyRound, Dices } from "lucide-react";
 
 interface Nautical3DCompassProps {
   height?: string;
   interactive?: boolean;
+  onSeedGenerated?: (seedHex: string) => void;
 }
 
-export function Nautical3DCompass({ height = "360px", interactive = true }: Nautical3DCompassProps) {
+export function Nautical3DCompass({
+  height = "380px",
+  interactive = true,
+  onSeedGenerated,
+}: Nautical3DCompassProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [activeStatus, setActiveStatus] = useState("3D CIPHER ENGINE IDLE");
+  const [activeStatus, setActiveStatus] = useState("3D CIPHER ENGINE READY");
+  const [dialAngle, setDialAngle] = useState(137);
+  const [entropySeed, setEntropySeed] = useState("0x9f4a8b2c1d3e5f7a");
+  const [copied, setCopied] = useState(false);
+
+  // References for Three.js objects
+  const compassGroupRef = useRef<THREE.Group | null>(null);
+  const coreMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
+
+  // Helper to generate WebCrypto entropy seed
+  const generateRealEntropy = () => {
+    nauticalAudio.playClick();
+    setIsSpinning(true);
+    setActiveStatus("CALCULATING WEBCRYPTO HARDWARE ENTROPY...");
+
+    // Generate random 8 bytes using Web Crypto API
+    const bytes = new Uint8Array(8);
+    window.crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const newSeed = `0x${hex}`;
+    const newAngle = Math.floor(Math.random() * 360);
+
+    setDialAngle(newAngle);
+    setEntropySeed(newSeed);
+    onSeedGenerated?.(newSeed);
+
+    setTimeout(() => {
+      setIsSpinning(false);
+      setActiveStatus(`ENTROPY GENERATED (${newAngle}° ALIGNED)`);
+      nauticalAudio.playChime();
+    }, 800);
+  };
 
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
     const width = container.clientWidth || 400;
-    const h = container.clientHeight || 360;
+    const h = container.clientHeight || 380;
 
     // 1. Scene setup
     const scene = new THREE.Scene();
@@ -52,6 +91,7 @@ export function Nautical3DCompass({ height = "360px", interactive = true }: Naut
 
     // 5. 3D Compass Group
     const compassGroup = new THREE.Group();
+    compassGroupRef.current = compassGroup;
     scene.add(compassGroup);
 
     // Gold Outer Brass Ring
@@ -84,6 +124,7 @@ export function Nautical3DCompass({ height = "360px", interactive = true }: Naut
       emissive: 0x1a7a4a,
       emissiveIntensity: 0.8,
     });
+    coreMatRef.current = coreMat;
     const coreMesh = new THREE.Mesh(coreGeo, coreMat);
     compassGroup.add(coreMesh);
 
@@ -153,7 +194,6 @@ export function Nautical3DCompass({ height = "360px", interactive = true }: Naut
     // Mouse Interaction Target Positions
     let targetRotX = 0;
     let targetRotY = 0;
-    let spinVelocity = 0.005;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!interactive) return;
@@ -176,8 +216,11 @@ export function Nautical3DCompass({ height = "360px", interactive = true }: Naut
       const elapsedTime = clock.getElapsedTime();
 
       // Smooth rotation dampening
-      compassGroup.rotation.y += (targetRotY - compassGroup.rotation.y) * 0.05 + spinVelocity;
-      compassGroup.rotation.x += (targetRotX - compassGroup.rotation.x) * 0.05;
+      if (compassGroupRef.current) {
+        const spinVel = isSpinning ? 0.08 : 0.005;
+        compassGroupRef.current.rotation.y += (targetRotY - compassGroupRef.current.rotation.y) * 0.05 + spinVel;
+        compassGroupRef.current.rotation.x += (targetRotX - compassGroupRef.current.rotation.x) * 0.05;
+      }
 
       innerRing.rotation.y = elapsedTime * 0.8;
       innerRing.rotation.z = elapsedTime * 0.4;
@@ -185,7 +228,9 @@ export function Nautical3DCompass({ height = "360px", interactive = true }: Naut
       gemMesh.rotation.x = elapsedTime * 1.5;
 
       // Pulse core light
-      coreMat.emissiveIntensity = 0.5 + Math.sin(elapsedTime * 3) * 0.3;
+      if (coreMatRef.current) {
+        coreMatRef.current.emissiveIntensity = 0.5 + Math.sin(elapsedTime * 3) * 0.3;
+      }
 
       // Particles float
       particles.rotation.y = elapsedTime * 0.02;
@@ -216,40 +261,73 @@ export function Nautical3DCompass({ height = "360px", interactive = true }: Naut
       }
       renderer.dispose();
     };
-  }, [interactive]);
+  }, [interactive, isSpinning]);
 
-  const handleCompassClick = () => {
-    nauticalAudio.playBell();
-    setIsSpinning(true);
-    setActiveStatus("EXECUTING WebCrypto 3D CIPHER ALIGNMENT...");
-
-    setTimeout(() => {
-      setIsSpinning(false);
-      setActiveStatus("3D CIPHER ENGINE ALIGNED & ONLINE");
-    }, 1800);
+  const handleCopySeed = () => {
+    navigator.clipboard.writeText(entropySeed);
+    setCopied(true);
+    nauticalAudio.playClick();
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="relative w-full rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-amber-900/40 p-4 shadow-2xl backdrop-blur-xl overflow-hidden group">
+    <div className="relative w-full rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-amber-900/40 p-4 shadow-2xl backdrop-blur-xl overflow-hidden group space-y-3">
       {/* 3D WebGL Canvas Container */}
       <div
         ref={mountRef}
-        onClick={handleCompassClick}
+        onClick={generateRealEntropy}
         style={{ height }}
-        className="w-full cursor-pointer flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.02]"
+        className="w-full cursor-pointer flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.01]"
       />
 
-      {/* Interactive Overlay Info Pill */}
-      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none px-4 py-2 bg-slate-950/80 border border-amber-900/40 rounded-xl backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${isSpinning ? "bg-amber-400 animate-ping" : "bg-emerald-400"}`} />
-          <span className="font-mono text-[11px] font-bold tracking-wider text-amber-200 uppercase">
-            {activeStatus}
-          </span>
+      {/* Real Functional 3D Control Bar & Readout */}
+      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-3 backdrop-blur-md space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-900/30 pb-2">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${isSpinning ? "bg-amber-400 animate-ping" : "bg-emerald-400"}`} />
+            <span className="font-mono text-xs font-bold text-amber-200 tracking-wider uppercase">
+              {activeStatus}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 font-mono text-xs text-slate-400">
+            <span>Dial Angle: <strong className="text-amber-400 font-bold">{dialAngle}°</strong></span>
+            <span>Vector Skew: <strong className="text-emerald-400 font-bold">17.92° N</strong></span>
+          </div>
         </div>
-        <span className="font-mono text-[10px] text-slate-400">
-          Click 3D sphere to calibrate
-        </span>
+
+        {/* Functional Control Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] text-slate-400 flex items-center gap-1">
+              <KeyRound className="w-3.5 h-3.5 text-amber-500" /> Derived Entropy Seed:
+            </span>
+            <code className="font-mono text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
+              {entropySeed}
+            </code>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={generateRealEntropy}
+              disabled={isSpinning}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-mono text-xs font-bold rounded flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              <Dices className="w-3.5 h-3.5" />
+              <span>Generate WebCrypto Entropy</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopySeed}
+              className="px-3 py-1.5 bg-slate-900 border border-amber-900/40 hover:border-amber-500 text-amber-300 font-mono text-xs rounded flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? "Copied!" : "Copy Seed"}</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
