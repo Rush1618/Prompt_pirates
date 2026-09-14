@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { nauticalAudio } from "@/lib/audio";
-import { Copy, Check, KeyRound, Dices, Lock, Unlock, Compass, RotateCcw } from "lucide-react";
+import { Copy, Check, KeyRound, Dices, Lock, Unlock, Compass, Layers } from "lucide-react";
 
 interface Nautical3DCompassProps {
   height?: string;
   interactive?: boolean;
   mode?: "vault" | "inspector" | "entropy";
   verificationStatus?: "idle" | "verifying" | "pass" | "fail";
-  onAngleChange?: (angleDeg: number, seedHex: string, saltHex: string) => void;
+  onAngleChange?: (outerAngleDeg: number, innerAngleDeg: number, seedHex: string, saltHex: string) => void;
 }
 
 export function Nautical3DCompass({
@@ -22,25 +22,24 @@ export function Nautical3DCompass({
 }: Nautical3DCompassProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [dialAngle, setDialAngle] = useState(137);
+  const [outerAngle, setOuterAngle] = useState(137);
+  const [innerAngle, setInnerAngle] = useState(76);
   const [entropySeed, setEntropySeed] = useState("0x9f4a8b2c1d3e5f7a");
   const [saltHex, setSaltHex] = useState("0x7a8b9c0d1e2f3a4b");
   const [isLocked, setIsLocked] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("3D KEY VAULT LOCKED & ALIGNED");
+  const [statusMessage, setStatusMessage] = useState("DUAL 3D COMPASS RINGS ALIGNED");
 
   // References for Three.js objects
   const compassGroupRef = useRef<THREE.Group | null>(null);
   const outerRingRef = useRef<THREE.Mesh | null>(null);
+  const innerRingRef = useRef<THREE.Mesh | null>(null);
   const coreMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
 
-  // Compute WebCrypto Salt & Seed from Angle
-  const updateKeyParameters = (angleDeg: number) => {
-    const angleRad = (angleDeg * Math.PI) / 180;
-
-    // Derive deterministic 8-byte hex salt & seed from angle + WebCrypto random shift
+  // Compute WebCrypto Salt & Seed from Bi-Directional Angles
+  const updateKeyParameters = (outerDeg: number, innerDeg: number) => {
     const enc = new TextEncoder();
-    const payloadStr = `DMC_3D_KEY_ANGLE:${angleDeg}:${angleRad.toFixed(4)}`;
+    const payloadStr = `DMC_DUAL_3D_KEY:${outerDeg}:${innerDeg}`;
 
     crypto.subtle.digest("SHA-256", enc.encode(payloadStr)).then((buf) => {
       const hex = Array.from(new Uint8Array(buf))
@@ -51,38 +50,49 @@ export function Nautical3DCompass({
 
       setEntropySeed(seed);
       setSaltHex(salt);
-      onAngleChange?.(angleDeg, seed, salt);
+      onAngleChange?.(outerDeg, innerDeg, seed, salt);
     });
   };
 
-  // Generate Real Hardware Random Entropy via Web Crypto
+  // Generate Real Hardware Random Entropy via Web Crypto for Dual Rings
   const handleGenerateEntropy = () => {
     nauticalAudio.playClick();
     setIsSpinning(true);
-    setStatusMessage("HARVESTING WEBCRYPTO HARDWARE ENTROPY...");
+    setStatusMessage("HARVESTING DUAL-AXIS WEBCRYPTO HARDWARE ENTROPY...");
 
     const bytes = new Uint8Array(8);
     window.crypto.getRandomValues(bytes);
-    const newAngle = (bytes[0] * 360) / 255;
-    const roundedAngle = Math.round(newAngle);
+    const newOuter = Math.round((bytes[0] * 360) / 255);
+    const newInner = Math.round((bytes[1] * 360) / 255);
 
-    setDialAngle(roundedAngle);
-    updateKeyParameters(roundedAngle);
+    setOuterAngle(newOuter);
+    setInnerAngle(newInner);
+    updateKeyParameters(newOuter, newInner);
 
     setTimeout(() => {
       setIsSpinning(false);
-      setStatusMessage(`3D KEY ALIGNED TO ${roundedAngle}° (${roundedAngle > 180 ? "WESTWARD" : "EASTWARD"})`);
+      setStatusMessage(`DUAL RINGS ALIGNED: OUTER ${newOuter}° N × INNER ${newInner}° W`);
       nauticalAudio.playChime();
     }, 800);
   };
 
-  // Handle Manual Angle Slider Change
-  const handleSliderChange = (newAngle: number) => {
-    setDialAngle(newAngle);
-    updateKeyParameters(newAngle);
+  // Handle Manual Outer Slider Change
+  const handleOuterSliderChange = (newOuter: number) => {
+    setOuterAngle(newOuter);
+    updateKeyParameters(newOuter, innerAngle);
 
-    if (compassGroupRef.current) {
-      compassGroupRef.current.rotation.z = (newAngle * Math.PI) / 180;
+    if (outerRingRef.current) {
+      outerRingRef.current.rotation.z = (newOuter * Math.PI) / 180;
+    }
+  };
+
+  // Handle Manual Inner Slider Change
+  const handleInnerSliderChange = (newInner: number) => {
+    setInnerAngle(newInner);
+    updateKeyParameters(outerAngle, newInner);
+
+    if (innerRingRef.current) {
+      innerRingRef.current.rotation.y = (newInner * Math.PI) / 180;
     }
   };
 
@@ -91,10 +101,10 @@ export function Nautical3DCompass({
     setIsLocked(nextLocked);
     if (nextLocked) {
       nauticalAudio.playAlarm();
-      setStatusMessage("3D CIPHER LOCK SEALED");
+      setStatusMessage("DUAL CIPHER RINGS SEALED");
     } else {
       nauticalAudio.playBell();
-      setStatusMessage("3D CIPHER LOCK UNSEALED");
+      setStatusMessage("DUAL CIPHER RINGS UNSEALED");
     }
   };
 
@@ -139,10 +149,9 @@ export function Nautical3DCompass({
     // 5. 3D Compass Group
     const compassGroup = new THREE.Group();
     compassGroupRef.current = compassGroup;
-    compassGroup.rotation.z = (dialAngle * Math.PI) / 180;
     scene.add(compassGroup);
 
-    // Gold Outer Brass Ring
+    // Gold Outer Brass Ring (Bi-Directional Outer Ring)
     const ringGeo = new THREE.TorusGeometry(1.6, 0.08, 24, 100);
     const ringMat = new THREE.MeshStandardMaterial({
       color: verificationStatus === "fail" ? 0xef4444 : 0xc9a84c,
@@ -151,18 +160,22 @@ export function Nautical3DCompass({
       emissive: isLocked ? 0x3d2f0d : 0x1a7a4a,
     });
     const outerRing = new THREE.Mesh(ringGeo, ringMat);
+    outerRing.rotation.z = (outerAngle * Math.PI) / 180;
     outerRingRef.current = outerRing;
     compassGroup.add(outerRing);
 
-    // Inner Gimbal Ring
-    const innerRingGeo = new THREE.TorusGeometry(1.3, 0.04, 16, 80);
+    // Inner Gimbal Ring (Bi-Directional Inner Ring)
+    const innerRingGeo = new THREE.TorusGeometry(1.25, 0.05, 16, 80);
     const innerRingMat = new THREE.MeshStandardMaterial({
       color: 0xe8c56e,
       metalness: 0.9,
       roughness: 0.2,
+      emissive: 0x2a1f0a,
     });
     const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
     innerRing.rotation.x = Math.PI / 4;
+    innerRing.rotation.y = (innerAngle * Math.PI) / 180;
+    innerRingRef.current = innerRing;
     compassGroup.add(innerRing);
 
     // Central Cipher Core (Icosahedron)
@@ -219,7 +232,7 @@ export function Nautical3DCompass({
 
     compassGroup.add(needleGroup);
 
-    // 6. Particle Sea Mist / Starfield
+    // Particle Sea Mist
     const particleCount = 150;
     const particleGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
@@ -240,7 +253,7 @@ export function Nautical3DCompass({
     const particles = new THREE.Points(particleGeo, particleMat);
     scene.add(particles);
 
-    // Mouse Interaction Target Positions
+    // Mouse Interaction
     let targetRotX = 0;
     let targetRotY = 0;
 
@@ -270,12 +283,17 @@ export function Nautical3DCompass({
         compassGroupRef.current.rotation.x += (targetRotX - compassGroupRef.current.rotation.x) * 0.05;
       }
 
-      innerRing.rotation.y = elapsedTime * 0.8;
-      innerRing.rotation.z = elapsedTime * 0.4;
+      // Bi-directional rotation: Outer Ring Z vs Inner Ring Y
+      if (outerRingRef.current) {
+        outerRingRef.current.rotation.z = (outerAngle * Math.PI) / 180 + (isSpinning ? elapsedTime * 2 : 0);
+      }
+      if (innerRingRef.current) {
+        innerRingRef.current.rotation.y = (innerAngle * Math.PI) / 180 - (isSpinning ? elapsedTime * 3 : elapsedTime * 0.4);
+      }
+
       coreMesh.rotation.y = -elapsedTime * 1.2;
       gemMesh.rotation.x = elapsedTime * 1.5;
 
-      // Pulse core light
       if (coreMatRef.current) {
         coreMatRef.current.emissiveIntensity = 0.5 + Math.sin(elapsedTime * 3) * 0.3;
       }
@@ -306,7 +324,7 @@ export function Nautical3DCompass({
       }
       renderer.dispose();
     };
-  }, [interactive, isSpinning, verificationStatus, isLocked]);
+  }, [interactive, isSpinning, verificationStatus, isLocked, outerAngle, innerAngle]);
 
   const handleCopySeed = () => {
     navigator.clipboard.writeText(entropySeed);
@@ -325,12 +343,15 @@ export function Nautical3DCompass({
         className="w-full cursor-pointer flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.01]"
       />
 
-      {/* Interactive 3D Dial Angle Slider Control */}
-      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-4 backdrop-blur-md space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="font-mono text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Compass className="w-4 h-4 text-amber-400" /> Rotate 3D Cipher Key Dial Angle: {dialAngle}°
-          </label>
+      {/* Bi-Directional Dual Ring Controls (Outer Ring = Latitude | Inner Ring = Longitude) */}
+      <div className="bg-slate-950/90 border border-amber-900/40 rounded-xl p-4 backdrop-blur-md space-y-4">
+        <div className="flex items-center justify-between border-b border-amber-900/30 pb-2">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-amber-400" />
+            <span className="font-mono text-xs font-bold text-amber-200 uppercase tracking-wider">
+              Dual 3D Concentric Ring Controls
+            </span>
+          </div>
           <button
             type="button"
             onClick={toggleLockState}
@@ -345,21 +366,47 @@ export function Nautical3DCompass({
           </button>
         </div>
 
-        <input
-          type="range"
-          min="0"
-          max="360"
-          value={dialAngle}
-          onChange={(e) => handleSliderChange(Number(e.target.value))}
-          className="w-full h-2 bg-slate-900 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
-        />
+        {/* Dual Ring Sliders */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Outer Ring Slider (Latitude / No. before X) */}
+          <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-lg border border-amber-900/30">
+            <div className="flex justify-between items-center font-mono text-xs">
+              <span className="text-amber-300 font-bold">Outer Ring (Lat / Before X):</span>
+              <span className="text-emerald-400 font-bold font-mono">{outerAngle}° N</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              value={outerAngle}
+              onChange={(e) => handleOuterSliderChange(Number(e.target.value))}
+              className="w-full h-2 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            />
+          </div>
+
+          {/* Inner Ring Slider (Longitude / No. after X) */}
+          <div className="space-y-1.5 bg-slate-900/60 p-3 rounded-lg border border-amber-900/30">
+            <div className="flex justify-between items-center font-mono text-xs">
+              <span className="text-amber-300 font-bold">Inner Ring (Long / After X):</span>
+              <span className="text-emerald-400 font-bold font-mono">{innerAngle}° W</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              value={innerAngle}
+              onChange={(e) => handleInnerSliderChange(Number(e.target.value))}
+              className="w-full h-2 bg-slate-950 border border-amber-900/40 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            />
+          </div>
+        </div>
 
         {/* Readouts & Buttons */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-amber-900/30 font-mono text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">AES Salt:</span>
-            <code className="text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-              {saltHex}
+            <span className="text-slate-400">Coordinates:</span>
+            <code className="text-amber-300 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
+              {outerAngle}° N × {innerAngle}° W
             </code>
           </div>
 
@@ -371,7 +418,7 @@ export function Nautical3DCompass({
               className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-mono text-xs font-bold rounded flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
             >
               <Dices className="w-3.5 h-3.5" />
-              <span>WebCrypto Randomize</span>
+              <span>Bi-Directional Entropy</span>
             </button>
 
             <button
