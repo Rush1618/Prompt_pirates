@@ -1,7 +1,8 @@
 /**
- * Returns the resolved base site URL across any environment (Vercel, custom domain, local, staging).
- * Prioritizes production domain (VERCEL_PROJECT_PRODUCTION_URL or NEXT_PUBLIC_SITE_URL) over temporary deployment hashes
- * so sitemaps and canonical metadata match the exact production host for Google Search Console compliance.
+ * Returns the resolved base site URL across any environment.
+ * Uses NEXT_PUBLIC_SITE_URL or SITE_URL or VERCEL_PROJECT_PRODUCTION_URL,
+ * defaulting to the production domain https://promptpirates.vercel.app.
+ * Ignores VERCEL_URL preview hashes so sitemap.xml always matches Search Console domain.
  */
 export function getSiteUrl(): string {
   const envUrl =
@@ -10,9 +11,7 @@ export function getSiteUrl(): string {
     process.env.VITE_SITE_URL ||
     (process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : undefined) ||
-    process.env.NEXT_PUBLIC_VERCEL_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+      : undefined);
 
   let rawUrl = envUrl || "https://promptpirates.vercel.app";
 
