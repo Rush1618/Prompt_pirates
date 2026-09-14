@@ -1,8 +1,9 @@
 import { MetadataRoute } from "next";
 import { GHOST_BLOG_POSTS } from "@/lib/blogs";
+import { getSiteUrl } from "@/lib/site-url";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://prompt-pirates.vercel.app";
+  const baseUrl = getSiteUrl();
   const now = new Date();
 
   const staticRoutes = [

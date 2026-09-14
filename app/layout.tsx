@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppShellWrapper } from "@/components/layout/app-shell-wrapper";
+import { getSiteUrl } from "@/lib/site-url";
 
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://prompt-pirates.vercel.app";
+const baseUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
