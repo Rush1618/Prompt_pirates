@@ -2,6 +2,10 @@
 
 > **A high-performance educational cybersecurity workbench demonstrating client-side authenticated encryption, digital signatures, steganography, tamper-evident auditing, and 3D WebGL key hardware controls in a 17th-century naval intelligence interface.**
 
+![Build Status](https://img.shields.io/badge/Vercel-Deployed-brightgreen?style=for-the-badge&logo=vercel)
+![Version](https://img.shields.io/badge/Release-v1.2.0-gold?style=for-the-badge)
+![Security](https://img.shields.io/badge/WebCrypto-Client--Side-emerald?style=for-the-badge)
+
 ---
 
 ## 🌟 Overview
