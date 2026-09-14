@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, ArrowLeft, Anchor, Volume2, VolumeX, Shield } from "lucide-react";
 import Link from "next/link";
@@ -24,19 +24,12 @@ const ROUTE_NAMES: Record<string, string> = {
 };
 
 export function AppShellWrapper({ children }: AppShellWrapperProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
   const currentTitle = ROUTE_NAMES[pathname] || "Deck";
-
-  // Automatically open sidebar on desktop viewports (>= 1024px)
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
-      setSidebarOpen(true);
-    }
-  }, []);
 
   const handleToggleAudio = () => {
     const muted = nauticalAudio.toggleMute();
@@ -54,29 +47,22 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
     }
   };
 
-  const handleNavClick = () => {
-    // Only close drawer on mobile screens (< 1024px) so desktop sidebar stays still
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
       {/* Top Universal App Header Bar */}
       <header className="sticky top-0 z-50 bg-slate-950/90 border-b border-amber-900/40 px-4 py-2.5 backdrop-blur-md flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
-          {/* Hamburger Menu Toggle Button */}
+          {/* Hamburger Menu Toggle Button (Mobile Only < 1024px) */}
           <button
             type="button"
             onClick={() => {
               nauticalAudio.playClick();
-              setSidebarOpen(!sidebarOpen);
+              setMobileDrawerOpen(!mobileDrawerOpen);
             }}
-            className="p-2 rounded-lg bg-slate-900 border border-amber-900/40 text-amber-400 hover:text-amber-200 hover:border-amber-500 transition-all flex items-center gap-1.5 font-mono text-xs cursor-pointer shadow-md active:scale-95"
+            className="lg:hidden p-2 rounded-lg bg-slate-900 border border-amber-900/40 text-amber-400 hover:text-amber-200 hover:border-amber-500 transition-all flex items-center gap-1.5 font-mono text-xs cursor-pointer shadow-md active:scale-95"
             aria-label="Toggle navigation sidebar"
           >
-            {sidebarOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5 text-amber-400" />}
+            {mobileDrawerOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5 text-amber-400" />}
             <span className="font-bold uppercase tracking-wider text-[11px] sm:text-xs">Navigation</span>
           </button>
 
@@ -130,20 +116,25 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
 
       {/* App Shell Content Container */}
       <div className="flex-1 flex relative">
-        {/* Sidebar Drawer Container — Stationary on Desktop (lg:static lg:translate-x-0) */}
+        {/* Stationary Sidebar for Desktop (Always Visible on Desktop >= 1024px) */}
+        <aside className="hidden lg:block lg:w-72 lg:shrink-0 bg-slate-950 border-r border-amber-900/40 min-h-[calc(100vh-49px)]">
+          <Sidebar />
+        </aside>
+
+        {/* Mobile Sliding Drawer Sidebar (Hidden on Desktop, Closed by Default on Mobile) */}
         <div
-          className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-amber-900/40 transform transition-transform duration-300 ease-in-out ${
-            sidebarOpen ? "translate-x-0 lg:static lg:translate-x-0" : "-translate-x-full lg:hidden"
+          className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-amber-900/40 transform transition-transform duration-300 ease-in-out lg:hidden ${
+            mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{ top: "49px" }}
         >
-          <Sidebar onNavigate={handleNavClick} />
+          <Sidebar onNavigate={() => setMobileDrawerOpen(false)} />
         </div>
 
         {/* Mobile & Drawer Backdrop Overlay */}
-        {sidebarOpen && (
+        {mobileDrawerOpen && (
           <div
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => setMobileDrawerOpen(false)}
             className="fixed inset-0 bg-slate-950/80 z-30 lg:hidden backdrop-blur-sm transition-opacity"
             style={{ top: "49px" }}
           />
